@@ -2,6 +2,11 @@ name: Build Windows MSI
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version to publish (for example 1.0.0). Leave blank for a build-only run."
+        required: false
+        type: string
   push:
     branches:
       - "main"
@@ -42,9 +47,19 @@ jobs:
 
       - name: Create MSI
         shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.release_version }}
+          REF_NAME: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          if ("${{ github.ref_type }}" -ne "tag") { $version = "0.1.0" }
+          $version = $env:RELEASE_VERSION
+          if ($version) {
+            if ($version -notmatch "^\d+\.\d+\.\d+$") { throw "Release version must use X.Y.Z format, such as 1.0.0." }
+          } elseif ($env:REF_TYPE -eq "tag") {
+            $version = $env:REF_NAME.TrimStart("v")
+          } else {
+            $version = "0.1.0"
+          }
           wix build installer.wxs -d ProductVersion=$version -o "SkuaDashboard-Setup-x64.msi"
 
       - name: Upload MSI build artifact
@@ -54,8 +69,11 @@ jobs:
           path: SkuaDashboard-Setup-x64.msi
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_version != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_version != '' && format('v{0}', inputs.release_version) || github.ref_name }}
+          target_commitish: main
+          name: Skua Dashboard v${{ inputs.release_version != '' && inputs.release_version || github.ref_name }}
           files: SkuaDashboard-Setup-x64.msi
           generate_release_notes: true
