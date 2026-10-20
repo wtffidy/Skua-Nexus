@@ -101,6 +101,10 @@ Use a long, private Wi-Fi password and do not forward port 8787 on your router. 
 
 The dashboard is served locally at `http://127.0.0.1:8787/` on the PC. Use the PC's LAN IP or Tailscale URL only for remote devices.
 
+## Manager appearance
+
+The Skua Nexus Manager has an **Appearance** control for selecting a custom background image (PNG, JPG/JPEG, WEBP, BMP, or GIF) and adjusting window opacity from 60% to 100%. Preferences are saved in `%APPDATA%\\SkuaDashboard\\ui-settings.json` and persist between launches. The Velopack build script installs Pillow when needed so the packaged manager can load common image formats.
+
 ### On the same home Wi-Fi
 
 1. Find your Windows PC's LAN IPv4 address with `ipconfig` (look for the active Wi-Fi/Ethernet adapter's `IPv4 Address`).
