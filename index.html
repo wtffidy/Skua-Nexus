@@ -112,7 +112,7 @@ function render() {
     const uptime = usage.uptimeSeconds == null ? "uptime —" : `up ${Math.floor(usage.uptimeSeconds / 3600)}h ${Math.floor((usage.uptimeSeconds % 3600) / 60)}m`;
     const cpu = usage.cpuPercent == null ? "CPU sampling…" : `CPU ${usage.cpuPercent.toFixed(1)}%`;
     const memory = `${(usage.memoryBytes / 1073741824).toFixed(2)} GB RAM`;
-    $("#usage").textContent = `VibeSkua | ${uptime} | ${on} active tabs | ${cpu} | ${memory}`;
+    $("#usage").textContent = `VibeSkua${usage.version ? " " + usage.version : ""} | ${uptime} | ${on} active tabs | ${cpu} | ${memory}`;
   }
 }
 
