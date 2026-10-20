@@ -48,6 +48,7 @@ dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);borde
 <div class="bar-top"><b>Army</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button><button id="delsel" class="danger" hidden>Delete selected</button>
 <span class="sp"></span><button id="view">Grid View</button></div>
 <div id="grid"></div>
+<dialog id="confirmDlg"><p id="confirmText">Confirm deletion?</p><p><button id="confirmCancel">Cancel</button> <button class="danger" id="confirmDelete">Delete</button></p></dialog>
 <dialog id="dlg"><p>Relay URL (default is the local relay.py)</p>
 <input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read key (only for the Cloudflare relay, otherwise leave empty)</p><input type="text" id="rkin" size="48" placeholder="your READ_KEY secret"><p><button class="p" id="save">Save</button></p></dialog>
 <script>
@@ -121,28 +122,68 @@ async function poll() {
   finally { pollInFlight = false; }
 }
 
-// Per-card checkbox: click handler so each box toggles only its own bot
-// X button: asks the relay to forget that bot (works with the local relay.py)
+// In-page confirmation avoids browser-native confirm() behavior and popup settings.
+function askDelete(message) {
+  return new Promise(resolve => {
+    const dialog = $("#confirmDlg");
+    $("#confirmText").textContent = message;
+    const finish = value => {
+      dialog.close();
+      $("#confirmDelete").removeEventListener("click", onDelete);
+      $("#confirmCancel").removeEventListener("click", onCancel);
+      dialog.removeEventListener("cancel", onCancel);
+      resolve(value);
+    };
+    const onDelete = () => finish(true);
+    const onCancel = () => finish(false);
+    $("#confirmDelete").addEventListener("click", onDelete);
+    $("#confirmCancel").addEventListener("click", onCancel);
+    dialog.addEventListener("cancel", onCancel);
+    dialog.showModal();
+  });
+}
+
+// Per-card checkbox: click handler so each box toggles only its own bot.
+// X button: asks the relay to forget that bot (works with the local relay.py).
 $("#grid").onclick = async e => {
   const d = e.target.dataset?.del;
-  if (d && confirm(`Remove ${d} from the dashboard?`)) {
+  if (d) {
+    if (!await askDelete(`Remove ${d} from the dashboard?`)) return;
     picked.delete(d);
-    await fetch(`${url}/bots/${encodeURIComponent(d)}`, { method: "DELETE", headers: rk ? { Authorization: `Bearer ${rk}` } : {} }).catch(() => {});
+    try {
+      const response = await fetch(`${url}/bots/${encodeURIComponent(d)}`, { method: "DELETE", headers: rk ? { Authorization: `Bearer ${rk}` } : {} });
+      if (!response.ok) $("#sum").textContent = `Delete failed: HTTP ${response.status}`;
+    } catch {
+      $("#sum").textContent = "Delete failed: relay unreachable";
+    }
     return poll();
   }
-  const n = e.target.dataset?.n; if (!n) return; e.target.checked ? picked.add(n) : picked.delete(n); render(); };
+  const n = e.target.dataset?.n;
+  if (!n) return;
+  e.target.checked ? picked.add(n) : picked.delete(n);
+  render();
+};
 // Select all doubles as Unselect all once every visible bot is picked
 $("#all").onclick = () => {
   const names = bots.filter(b => b.name.toLowerCase().includes($("#q").value.toLowerCase())).map(b => b.name);
   const every = names.length > 0 && names.every(n => picked.has(n));
   names.forEach(n => every ? picked.delete(n) : picked.add(n)); render();
 };
-// Bulk delete: removes every ticked bot from the relay in one go
+// Bulk delete: removes every ticked bot from the relay in one go.
 $("#delsel").onclick = async () => {
   const names = [...picked];
-  if (!confirm(`Delete ${names.length} selected bot(s) from the dashboard?`)) return;
-  await Promise.all(names.map(n => fetch(`${url}/bots/${encodeURIComponent(n)}`, { method: "DELETE", headers: rk ? { Authorization: `Bearer ${rk}` } : {} }).catch(() => {})));
-  picked.clear(); poll();
+  if (!names.length || !await askDelete(`Delete ${names.length} selected bot(s) from the dashboard?`)) return;
+  const results = await Promise.all(names.map(async n => {
+    try {
+      const response = await fetch(`${url}/bots/${encodeURIComponent(n)}`, { method: "DELETE", headers: rk ? { Authorization: `Bearer ${rk}` } : {} });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }));
+  picked.clear();
+  await poll();
+  if (results.some(ok => !ok)) $("#sum").textContent = `Some deletions failed (${results.filter(ok => !ok).length}); check that relay.py is running and configured correctly.`;
 };
 $("#q").oninput = render;
 document.querySelectorAll("nav a").forEach(a => a.onclick = () => {
