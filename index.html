@@ -19,6 +19,7 @@ button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:v
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 .card.stale{opacity:.5}.card.sel{border-color:var(--acc)}
 .hd{display:flex;gap:8px;align-items:center;font-size:15px;font-weight:600}
+.x{margin-left:auto;padding:2px 8px;color:var(--mut)}.x:hover{color:var(--hp);border-color:var(--hp)}
 .tab{font:11px system-ui;font-weight:400;color:var(--mut);background:var(--in);padding:2px 7px;border-radius:4px}
 .pill{display:inline-block;margin:8px 0 12px;font-size:11px;padding:2px 9px;border-radius:99px;background:#12301d;color:var(--ok);border:1px solid #1d4a2c}
 .pill.off{background:#3a1a1a;color:var(--hp);border-color:#5a2a2a}
@@ -64,7 +65,7 @@ const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b><
 function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
   return `<div class="card ${stale ? "stale" : ""} ${on ? "sel" : ""}">
-  <div class="hd"><input type="checkbox" data-n="${esc(b.name)}" ${on ? "checked" : ""}><span class="tab">Tab ${i + 1}</span><span class="priv">${esc(b.name)}</span></div>
+  <div class="hd"><input type="checkbox" data-n="${esc(b.name)}" ${on ? "checked" : ""}><span class="tab">Tab ${i + 1}</span><span class="priv">${esc(b.name)}</span><button class="x" data-del="${esc(b.name)}" title="Remove this bot">&#10005;</button></div>
   <span class="pill ${stale ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
   <div class="kv"><span>Map</span><span>${esc(b.map ?? "-")}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
   <span>Level</span><span>${esc(b.level ?? "-")}${b.class ? " - " + esc(b.class) : ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
@@ -109,7 +110,15 @@ async function poll() {
 }
 
 // Per-card checkbox: click handler so each box toggles only its own bot
-$("#grid").onclick = e => { const n = e.target.dataset?.n; if (!n) return; e.target.checked ? picked.add(n) : picked.delete(n); render(); };
+// X button: asks the relay to forget that bot (works with the local relay.py)
+$("#grid").onclick = async e => {
+  const d = e.target.dataset?.del;
+  if (d && confirm(`Remove ${d} from the dashboard?`)) {
+    picked.delete(d);
+    await fetch(`${url}/bots/${encodeURIComponent(d)}`, { method: "DELETE", headers: rk ? { Authorization: `Bearer ${rk}` } : {} }).catch(() => {});
+    return poll();
+  }
+  const n = e.target.dataset?.n; if (!n) return; e.target.checked ? picked.add(n) : picked.delete(n); render(); };
 // Select all doubles as Unselect all once every visible bot is picked
 $("#all").onclick = () => {
   const names = bots.filter(b => b.name.toLowerCase().includes($("#q").value.toLowerCase())).map(b => b.name);

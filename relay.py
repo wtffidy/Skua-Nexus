@@ -12,7 +12,7 @@ import urllib.request
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 CFG_PATH, DATA_PATH = HERE / "config.json", HERE / "bots.json"
@@ -76,7 +76,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")  # lets an https page reach localhost
 
     def _send(self, code: int, body=b"") -> None:
@@ -100,6 +100,16 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, list(RAW))
         else:
             self._send(404, b"not found")
+
+    def do_DELETE(self):
+        # DELETE /bots/<name> removes one bot card (the dashboard's X button)
+        parts = [unquote(p) for p in urlparse(self.path).path.split("/") if p]
+        if len(parts) != 2 or parts[0] != "bots":
+            return self._send(404, b"not found")
+        with LOCK:
+            found = BOTS.pop(parts[1], None) is not None
+            DATA_PATH.write_text(json.dumps(BOTS))
+        self._send(200 if found else 404, b"ok" if found else b"no such bot")
 
     def do_POST(self):
         u = urlparse(self.path)
