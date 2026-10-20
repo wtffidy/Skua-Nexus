@@ -62,7 +62,7 @@ let url = localStorage.getItem("relay") || (location.protocol === "http:" ? loca
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
 const sec = (title, val, rows) => `<details><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body">${rows || "<div>No data</div>"}</div></details>`;
 const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
-const detailRows = value => rows(String(value ?? "").split(/\\r?\\n/).filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
+const detailRows = value => rows(String(value ?? "").split(/\r?\n/).filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
 
 function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
