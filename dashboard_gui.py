@@ -246,7 +246,7 @@ class DashboardApp(tk.Tk):
         footer = tk.Frame(dialog, bg=BG)
         footer.pack(fill="x", padx=20, pady=(0, 16))
         self._button(footer, "Save", lambda: self._save_appearance(dialog), primary=True).pack(side="right")
-        self._button(footer, "Cancel", lambda: self._cancel_appearance(dialog)).pack(side="right", padx=(0, 8))
+        self._button(footer, "Close", lambda: self._cancel_appearance(dialog)).pack(side="right", padx=(0, 8))
         dialog.protocol("WM_DELETE_WINDOW", lambda: self._cancel_appearance(dialog))
 
     def _choose_background(self, dialog: tk.Toplevel) -> None:
