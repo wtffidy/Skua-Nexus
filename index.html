@@ -65,7 +65,7 @@ const STALE = 180000; // 3 min offline cutoff (works with a 1-min ping interval)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => (n ?? 0).toLocaleString();
 const pct = (a, b) => b ? Math.min(100, a / b * 100) : 0;
-let url = localStorage.getItem("relay") || (location.protocol === "http:" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set(), sectionOpen = new Map(), usage = null;
+let url = localStorage.getItem("relay") || (location.protocol === "http:" && location.port === "8787" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set(), sectionOpen = new Map(), usage = null;
 
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
 const sec = (botName, title, val, rows, privateBody = false) => { const key = `${botName}::${title}`; const open = sectionOpen.get(key) !== false; return `<details data-section-key="${esc(key)}" ${open ? "open" : ""}><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body ${privateBody ? "priv" : ""}">${rows || "<div>No data</div>"}</div></details>`; };
