@@ -388,30 +388,55 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
 
     private async Task PostWebhookAsync(object payload)
     {
-        try
-        {
-            var url = _settingsService.GetClient()?.DiscordWebhookUrl;
-            if (string.IsNullOrWhiteSpace(url)) return;
+        var url = _settingsService.GetClient()?.DiscordWebhookUrl;
+        if (string.IsNullOrWhiteSpace(url)) return;
 
-            var json = JsonSerializer.Serialize(payload);
-            for (int attempt = 0; attempt < 3; attempt++)
+        var json = JsonSerializer.Serialize(payload);
+
+        // Retry transient failures, including connection-refused errors while the local
+        // dashboard relay is starting. Health snapshots continue on the normal timer,
+        // so a temporarily unavailable relay won't require restarting the script.
+        const int maxAttempts = 4;
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
             {
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
                 using var response = await _httpClient.PostAsync(url, content);
                 if (response.IsSuccessStatusCode)
-                    break;
+                    return;
 
-                if ((int)response.StatusCode == 429)
+                int statusCode = (int)response.StatusCode;
+                bool retryable = statusCode == 408 || statusCode == 429 || statusCode >= 500;
+                if (!retryable || attempt == maxAttempts - 1)
                 {
-                    await Task.Delay(1500 * (attempt + 1));
-                    continue;
+                    System.Diagnostics.Trace.WriteLine($"Discord PostWebhookAsync returned HTTP {statusCode}.");
+                    return;
                 }
-                break;
+
+                await Task.Delay(statusCode == 429 ? 1500 * (attempt + 1) : 1000 * (attempt + 1));
             }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Trace.WriteLine($"Discord PostWebhookAsync failed: {ex.Message}");
+            catch (HttpRequestException ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"Discord PostWebhookAsync attempt {attempt + 1}/{maxAttempts} failed: {ex.Message}");
+                if (attempt == maxAttempts - 1)
+                    return;
+
+                await Task.Delay(1000 * (attempt + 1));
+            }
+            catch (TaskCanceledException ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"Discord PostWebhookAsync attempt {attempt + 1}/{maxAttempts} timed out: {ex.Message}");
+                if (attempt == maxAttempts - 1)
+                    return;
+
+                await Task.Delay(1000 * (attempt + 1));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"Discord PostWebhookAsync failed: {ex.Message}");
+                return;
+            }
         }
     }
 
