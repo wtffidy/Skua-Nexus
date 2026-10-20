@@ -42,7 +42,7 @@ table{width:100%;border-collapse:collapse;background:var(--card);border:1px soli
 .blur .priv{filter:blur(6px)}
 dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px}
 </style></head><body>
-<header><div class="logo">V</div><b>Skua Manager</b><span id="sum" class="mut"></span><span class="sp"></span>
+<header><div class="logo">V</div><b>Skua Manager</b><span id="sum" class="mut"></span><span id="usage" class="mut">VibeSkua usage: checking…</span><span class="sp"></span>
 <label><input type="checkbox" id="stream" checked> Streamer mode</label><button id="cfg">Settings</button></header>
 <nav><a class="on" data-t="bots">Bots</a><a data-t="scripts">Scripts</a><a data-t="accounts">Accounts</a><a data-t="resources">Resources</a></nav>
 <div class="bar-top"><b>Army</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button><button id="delsel" class="danger" hidden>Delete selected</button>
@@ -58,7 +58,7 @@ const STALE = 180000; // 3 min offline cutoff (works with a 1-min ping interval)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => (n ?? 0).toLocaleString();
 const pct = (a, b) => b ? Math.min(100, a / b * 100) : 0;
-let url = localStorage.getItem("relay") || (location.protocol === "http:" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set(), sectionOpen = new Map();
+let url = localStorage.getItem("relay") || (location.protocol === "http:" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set(), sectionOpen = new Map(), usage = null;
 
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
 const sec = (botName, title, val, rows, privateBody = false) => { const key = `${botName}::${title}`; const open = sectionOpen.get(key) !== false; return `<details data-section-key="${esc(key)}" ${open ? "open" : ""}><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body ${privateBody ? "priv" : ""}">${rows || "<div>No data</div>"}</div></details>`; };
@@ -106,6 +106,14 @@ function render() {
   $("#delsel").textContent = `Delete selected (${picked.size})`;
   const on = bots.filter(b => Date.now() - b.updated < STALE).length;
   $("#sum").innerHTML = `<span class="dot">&#9679;</span> ${on}/${bots.length} online | ${fmt(bots.reduce((s, b) => s + (b.kills ?? 0), 0))} kills`;
+  if (!usage || !usage.available) {
+    $("#usage").textContent = "VibeSkua process not detected";
+  } else {
+    const uptime = usage.uptimeSeconds == null ? "uptime —" : `up ${Math.floor(usage.uptimeSeconds / 3600)}h ${Math.floor((usage.uptimeSeconds % 3600) / 60)}m`;
+    const cpu = usage.cpuPercent == null ? "CPU sampling…" : `CPU ${usage.cpuPercent.toFixed(1)}%`;
+    const memory = `${(usage.memoryBytes / 1073741824).toFixed(2)} GB RAM`;
+    $("#usage").textContent = `VibeSkua | ${uptime} | ${on} active tabs | ${cpu} | ${memory}`;
+  }
 }
 
 let pollInFlight = false;
@@ -119,6 +127,10 @@ async function poll() {
     const data = await r.json();
     if (!Array.isArray(data)) throw new Error("Relay returned an invalid bot list");
     bots = data.filter(b => b && typeof b.name === "string").sort((a, b) => a.name.localeCompare(b.name));
+    try {
+      const usageResponse = await fetch(url + "/usage", { cache: "no-store", headers: rk ? { Authorization: `Bearer ${rk}` } : {} });
+      usage = usageResponse.ok ? await usageResponse.json() : null;
+    } catch { usage = null; }
     render();
   } catch { $("#sum").textContent = "Relay unreachable or returned invalid data - is relay.py running?"; }
   finally { pollInFlight = false; }
