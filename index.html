@@ -103,13 +103,20 @@ function render() {
   $("#sum").innerHTML = `<span class="dot">&#9679;</span> ${on}/${bots.length} online | ${fmt(bots.reduce((s, b) => s + (b.kills ?? 0), 0))} kills`;
 }
 
+let pollInFlight = false;
 async function poll() {
-  if (!url) return;
+  if (!url || pollInFlight) return;
+  pollInFlight = true;
   try {
     const r = await fetch(url + "/bots", { cache: "no-store", headers: rk ? { Authorization: `Bearer ${rk}` } : {} });
     if (r.status === 401) { $("#sum").textContent = "Wrong or missing read key (Settings)"; return; }
-    bots = (await r.json()).sort((a, b) => a.name.localeCompare(b.name)); render();
-  } catch { $("#sum").textContent = "Relay unreachable - is relay.py running?"; }
+    if (!r.ok) throw new Error(`Relay returned HTTP ${r.status}`);
+    const data = await r.json();
+    if (!Array.isArray(data)) throw new Error("Relay returned an invalid bot list");
+    bots = data.filter(b => b && typeof b.name === "string").sort((a, b) => a.name.localeCompare(b.name));
+    render();
+  } catch { $("#sum").textContent = "Relay unreachable or returned invalid data - is relay.py running?"; }
+  finally { pollInFlight = false; }
 }
 
 // Per-card checkbox: click handler so each box toggles only its own bot
