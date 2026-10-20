@@ -490,7 +490,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Sec-WebSocket-Accept", accept)
             self.end_headers()
             client = self.connection
-            client.settimeout(45)
+            client.settimeout(None)
             with WS_LOCK:
                 WS_CLIENTS.add(client)
             try:
