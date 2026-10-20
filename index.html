@@ -93,6 +93,8 @@ function render() {
   $("#grid").innerHTML = cols
     ? `<div style="grid-column:1/-1"><table><tr>${cols.map(c => `<th>${c[0]}</th>`).join("")}</tr>${list.map(b => `<tr>${cols.map(c => `<td>${c[1](b)}</td>`).join("")}</tr>`).join("")}</table></div>`
     : list.map(card).join("") || `<p class="mut">No bots yet. Click Test Discord Webhook in a client.</p>`;
+  const every = list.length > 0 && list.every(b => picked.has(b.name));
+  $("#all").textContent = (every ? "Unselect all" : "Select all") + (picked.size ? ` (${picked.size})` : "");
   const on = bots.filter(b => Date.now() - b.updated < STALE).length;
   $("#sum").innerHTML = `<span class="dot">&#9679;</span> ${on}/${bots.length} online | ${fmt(bots.reduce((s, b) => s + (b.kills ?? 0), 0))} kills`;
 }
@@ -106,8 +108,14 @@ async function poll() {
   } catch { $("#sum").textContent = "Relay unreachable"; }
 }
 
-$("#grid").onchange = e => { const n = e.target.dataset.n; if (n) { e.target.checked ? picked.add(n) : picked.delete(n); render(); } };
-$("#all").onclick = () => { bots.forEach(b => picked.add(b.name)); render(); };
+// Per-card checkbox: click handler so each box toggles only its own bot
+$("#grid").onclick = e => { const n = e.target.dataset?.n; if (!n) return; e.target.checked ? picked.add(n) : picked.delete(n); render(); };
+// Select all doubles as Unselect all once every visible bot is picked
+$("#all").onclick = () => {
+  const names = bots.filter(b => b.name.toLowerCase().includes($("#q").value.toLowerCase())).map(b => b.name);
+  const every = names.length > 0 && names.every(n => picked.has(n));
+  names.forEach(n => every ? picked.delete(n) : picked.add(n)); render();
+};
 $("#q").oninput = render;
 document.querySelectorAll("nav a").forEach(a => a.onclick = () => {
   tab = a.dataset.t; document.querySelectorAll("nav a").forEach(x => x.classList.toggle("on", x === a)); render();
