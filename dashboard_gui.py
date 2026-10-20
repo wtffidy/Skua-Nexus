@@ -47,6 +47,8 @@ class DashboardApp(tk.Tk):
         self.minsize(660, 560)
         self.configure(bg=BG)
         self.process: subprocess.Popen | None = None
+        self.relay_log_handle = None
+        self.relay_log_path = APP_DATA / "relay.log"
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
         self.busy = False
 
@@ -210,11 +212,33 @@ class DashboardApp(tk.Tk):
             return
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         try:
+            APP_DATA.mkdir(parents=True, exist_ok=True)
+            self.relay_log_handle = self.relay_log_path.open("a", encoding="utf-8", errors="replace")
+            self.relay_log_handle.write(f"\\n--- Relay launch {__import__('datetime').datetime.now().isoformat(timespec='seconds')} ---\\n")
+            self.relay_log_handle.flush()
             command = [str(RELAY)] if FROZEN else [sys.executable, str(RELAY)]
-            self.process = subprocess.Popen(command, cwd=HERE, creationflags=flags)
-            self.log_message("Started Skua relay.")
+            self.process = subprocess.Popen(
+                command, cwd=HERE, creationflags=flags,
+                stdout=self.relay_log_handle, stderr=subprocess.STDOUT,
+            )
+            self.log_message(f"Started Skua relay; startup output: {self.relay_log_path}")
+            self.after(1000, self.check_relay_startup)
         except OSError as exc:
+            if self.relay_log_handle:
+                self.relay_log_handle.close()
+                self.relay_log_handle = None
             messagebox.showerror("Could not start relay", str(exc))
+
+    def check_relay_startup(self) -> None:
+        if self.process is None:
+            return
+        exit_code = self.process.poll()
+        if exit_code is not None:
+            self.log_message(f"Relay exited immediately with code {exit_code}. See {self.relay_log_path}")
+            self.status.configure(text="Relay failed to start — see relay.log", fg=RED)
+            if self.relay_log_handle:
+                self.relay_log_handle.close()
+                self.relay_log_handle = None
 
     def stop_relay(self) -> None:
         if self.process and self.process.poll() is None:
@@ -225,6 +249,9 @@ class DashboardApp(tk.Tk):
                 self.process.kill()
                 self.process.wait(timeout=2)
             self.process = None
+        if self.relay_log_handle:
+            self.relay_log_handle.close()
+            self.relay_log_handle = None
 
     def restart_relay(self) -> None:
         self.log_message("Restarting relay…")
