@@ -92,6 +92,9 @@ class DashboardApp(tk.Tk):
                 self.log_message(message)
                 if kind == "error":
                     self.status.configure(text=message)
+                elif kind == "restart_after_update":
+                    self.stop_relay()
+                    self.start_relay()
         except queue.Empty:
             pass
         self.after(250, self.drain_messages)
@@ -170,8 +173,7 @@ class DashboardApp(tk.Tk):
             self.messages.put(("log", output or "Git pull completed."))
             if changed:
                 self.messages.put(("log", "Updates were pulled; restarting relay to load them."))
-                self.stop_relay()
-                self.start_relay()
+                self.messages.put(("restart_after_update", ""))
             return "updates pulled" if changed else "already up to date"
 
         self.worker("Git update", pull)
