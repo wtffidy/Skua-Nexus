@@ -62,6 +62,7 @@ let url = localStorage.getItem("relay") || (location.protocol === "http:" ? loca
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
 const sec = (title, val, rows) => `<details><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body">${rows || "<div>No data</div>"}</div></details>`;
 const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
+const detailRows = value => rows(String(value ?? "").split("\\n").filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
 
 function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
@@ -74,7 +75,7 @@ function card(b, i) {
   <span>Script</span><span>${esc(b.script ?? "-")}</span></div>
   <div style="margin-top:14px">${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}</div>
   ${t ? `<div class="tgt"><div class="t"><span>Target <b>${esc(t.name)}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}<span class="chip">${esc(t.name)}</span></div>` : ""}
-  ${sec("Quest", b.quest ?? "-", "")}${sec("Equipment", b.weapon ?? "-", "")}
+  ${sec("Quest", b.quest ?? "-", detailRows(b.quest))}${sec("Equipment", b.weapon ?? "-", detailRows(b.weapon))}
   ${sec("Character", "", rows(b.fields))}${sec("Log", "", b.last ? `<div>${esc(b.last)}</div>` : "")}
   <div class="stats">${[["kills","Kills"],["drops","Drops"],["quests","Quests"],["deaths","Deaths"],["relogins","Relogins"]].map(([k, l]) => `<div><b>${fmt(b[k])}</b><small>${l}</small></div>`).join("")}</div>
   ${b.skuaMem || b.gameMem ? `<div class="ft">Skua ${esc(b.skuaMem ?? "-")} &nbsp; Game ${esc(b.gameMem ?? "-")}</div>` : ""}</div>`;
