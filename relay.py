@@ -477,7 +477,8 @@ class Handler(BaseHTTPRequestHandler):
             key = (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
             if CFG["allowed_origins"] and self.headers.get("Origin", "") not in CFG["allowed_origins"] and not self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1")):
                 return self._send(403, b"origin not allowed")
-            if CFG["push_key"] and not secrets.compare_digest(key, CFG["push_key"]):
+            local_origin = self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1"))
+            if not local_origin and CFG["push_key"] and not secrets.compare_digest(key, CFG["push_key"]):
                 return self._send(401, b"no")
             ws_key = self.headers.get("Sec-WebSocket-Key")
             if self.headers.get("Upgrade", "").lower() != "websocket" or not ws_key:
