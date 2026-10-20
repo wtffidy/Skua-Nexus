@@ -159,12 +159,15 @@ def record(body: dict) -> dict:
         prev = BOTS.get(name, {})
         status = next((label for key, label in STATUS if key in title), None) or embed.get("title") or prev.get("status")
         script = bold[1] if len(bold) > 1 else normalized.get("script", prev.get("script"))
-        # Status-only webhook alerts must not make stale game data look freshly reported.
+        # Every webhook proves the client is alive; only state-bearing payloads update stateUpdated.
+        # Keep prior game values when a health ping or notification contains no snapshot.
         has_state = bool(normalized)
-        updated = now if has_state else prev.get("updated", 0)
+        updated = now
+        state_updated = now if has_state else prev.get("stateUpdated", prev.get("updated", 0))
         merged = {**prev, **normalized}
         BOTS[name] = {
-            **merged, "status": status, "script": script, "name": name, "updated": updated,
+            **merged, "status": status, "script": script, "name": name,
+            "updated": updated, "stateUpdated": state_updated,
             "last": body.get("content") or desc.replace("**", "") or embed.get("title") or prev.get("last"),
             "fields": fields or prev.get("fields", []),
         }
