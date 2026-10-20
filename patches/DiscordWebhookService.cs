@@ -74,7 +74,10 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
                     // Rate limit: Max 2 messages per second
                     await Task.Delay(500, _cts.Token);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Trace.WriteLine($"Discord webhook queue action failed: {ex}");
+                }
             }
         }
     }
