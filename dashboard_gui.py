@@ -225,7 +225,7 @@ class DashboardApp(tk.Tk):
         opacity_row = tk.Frame(dialog, bg=BG)
         opacity_row.pack(fill="x", padx=20)
         tk.Label(opacity_row, text="Window opacity", bg=BG, fg=FG, font=("Segoe UI", 9, "bold")).pack(side="left")
-        opacity_value = tk.Label(opacity_row, text=f"{int(self.ui_settings.get(chr(111)+chr(112)+chr(97)+chr(99)+chr(105)+chr(116)+chr(121), 100))}%", bg=BG, fg=ACCENT, font=("Segoe UI", 9, "bold"))
+        opacity_value = tk.Label(opacity_row, text=f"{int(self.ui_settings.get("opacity", 100))}%", bg=BG, fg=ACCENT, font=("Segoe UI", 9, "bold"))
         opacity_value.pack(side="right")
         opacity_var = tk.IntVar(value=int(self.ui_settings.get("opacity", 100)))
         def update_opacity(value: str) -> None:
