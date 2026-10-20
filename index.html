@@ -30,7 +30,7 @@ button.danger{border-color:var(--hp);color:var(--hp)}button.danger:hover{backgro
 .tgt{background:var(--in);border-radius:8px;padding:10px;margin:12px 0}
 .tgt .t{display:flex;justify-content:space-between;margin-bottom:4px}.tgt .t span{color:var(--mut)}.tgt .t b{margin-left:6px;color:var(--fg)}
 .chip{display:inline-block;border:1px solid var(--tg);color:var(--fg);border-radius:99px;padding:1px 8px;font-size:11px;margin-top:2px}
-details{background:var(--in);border-radius:7px;margin-top:6px}details summary{pointer-events:none;cursor:default}details summary::before{content:"" !important}details[open] summary::before{content:"" !important}
+details{background:var(--in);border-radius:7px;margin-top:6px}
 summary{display:flex;justify-content:space-between;padding:9px 12px;cursor:pointer;list-style:none}
 summary::before{content:"\203A";margin-right:8px;color:var(--mut)}details[open] summary::before{content:"\2304"}
 summary span{flex:1}summary small{color:var(--mut);font-size:12px}
@@ -58,10 +58,10 @@ const STALE = 180000; // 3 min offline cutoff (works with a 1-min ping interval)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => (n ?? 0).toLocaleString();
 const pct = (a, b) => b ? Math.min(100, a / b * 100) : 0;
-let url = localStorage.getItem("relay") || (location.protocol === "http:" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set();
+let url = localStorage.getItem("relay") || (location.protocol === "http:" ? location.origin : "http://localhost:8787"), rk = localStorage.getItem("rk") || "", bots = [], picked = new Set(), sectionOpen = new Map();
 
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
-const sec = (title, val, rows, privateBody = false) => `<details open><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body ${privateBody ? "priv" : ""}">${rows || "<div>No data</div>"}</div></details>`;
+const sec = (botName, title, val, rows, privateBody = false) => { const key = `${botName}::${title}`; const open = sectionOpen.get(key) !== false; return `<details data-section-key="${esc(key)}" ${open ? "open" : ""}><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body ${privateBody ? "priv" : ""}">${rows || "<div>No data</div>"}</div></details>`; };
 const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
 const detailRows = value => rows(String(value ?? "").split(/\r?\n/).filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
 const logHtml = (message, name) => { const safe = esc(message); const safeName = esc(name); return safeName ? safe.replaceAll(safeName, `<span class="priv">${safeName}</span>`) : safe; };
@@ -78,8 +78,8 @@ function card(b, i) {
   <span>Script</span><span>${esc(b.script ?? "-")}</span></div>
   <div style="margin-top:14px">${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}</div>
   ${t ? `<div class="tgt"><div class="t"><span>Target <b>${esc(t.name)}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}<span class="chip">${esc(t.name)}</span></div>` : ""}
-  ${sec("Quest", b.quest ?? "-", detailRows(b.quest))}${sec("Equipment", b.weapon ?? "-", detailRows(b.weapon))}
-  ${sec("Character", "", rows(b.fields), true)}${sec("Log", "", b.last ? `<div>${logHtml(b.last, b.name)}</div>` : "")}
+  ${sec(b.name, "Quest", b.quest ?? "-", detailRows(b.quest))}${sec(b.name, "Equipment", b.weapon ?? "-", detailRows(b.weapon))}
+  ${sec(b.name, "Character", "", rows(b.fields), true)}${sec(b.name, "Log", "", b.last ? `<div>${logHtml(b.last, b.name)}</div>` : "")}
   <div class="stats">${[["kills","Kills"],["drops","Drops"],["quests","Quests"],["deaths","Deaths"],["relogins","Relogins"]].map(([k, l]) => `<div><b>${fmt(b[k])}</b><small>${l}</small></div>`).join("")}</div>
   ${b.skuaMem || b.gameMem ? `<div class="ft">Skua ${esc(b.skuaMem ?? "-")} &nbsp; Game ${esc(b.gameMem ?? "-")}</div>` : ""}</div>`;
 }
@@ -94,6 +94,7 @@ const TABS = {
 let tab = "bots";
 
 function render() {
+  $("#grid").querySelectorAll("details[data-section-key]").forEach(section => { sectionOpen.set(section.dataset.sectionKey, section.open); });
   const q = $("#q").value.toLowerCase(), list = bots.filter(b => b.name.toLowerCase().includes(q));
   const cols = TABS[tab];
   $("#grid").innerHTML = cols
