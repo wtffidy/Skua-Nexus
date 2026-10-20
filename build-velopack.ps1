@@ -127,6 +127,15 @@ Copy-Item (Join-Path $DistRoot "SkuaManager\manager_internal") $PackageDir -Recu
 Copy-Item (Join-Path $DistRoot "SkuaRelay\SkuaRelay.exe") $PackageDir
 Copy-Item (Join-Path $DistRoot "SkuaRelay\relay_internal") $PackageDir -Recurse
 
+# Remove previous installers and release metadata so rebuilding the same version does not collide with old output.
+if (Test-Path $ReleasesDir) {
+    Write-Host "Cleaning previous release files..."
+    Get-ChildItem -LiteralPath $ReleasesDir -Force | Remove-Item -Recurse -Force
+}
+else {
+    New-Item -ItemType Directory -Path $ReleasesDir -Force | Out-Null
+}
+
 Write-Host "Packing Velopack release v$Version..."
 & $Vpk pack --packId SkuaDashboard --packVersion $Version --packDir $PackageDir --mainExe SkuaManager.exe --packTitle "Skua Dashboard" --packAuthors "wtffidy" --icon $IconPath --outputDir $ReleasesDir
 if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed." }
