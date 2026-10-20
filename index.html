@@ -3,49 +3,56 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skua Manager</title>
 <style>
-:root{--bg:#0d0e12;--card:#14161c;--in:#1b1e26;--line:#262a35;--fg:#e8eaf0;--mut:#8b93a5;--acc:#7c6cff;--hp:#e05555;--mp:#3b82f6;--tg:#e5a82a;--ok:#22c55e}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px system-ui,sans-serif}
-header{display:flex;gap:12px;align-items:center;padding:14px 22px}
-.logo{background:var(--acc);border-radius:6px;width:24px;height:24px;display:grid;place-items:center;font-weight:700}
-header b{font-size:15px}.dot{color:var(--ok)}.mut{color:var(--mut)}.sp{flex:1}
-nav{display:flex;gap:26px;padding:0 22px;border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
-nav a{padding:13px 0;color:var(--mut);cursor:pointer}nav a.on{color:var(--fg);border-bottom:2px solid var(--acc)}
-button,input[type=text]{background:var(--in);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 12px;font:inherit}
-button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:var(--acc);border-color:var(--acc)}
-.bar-top{display:flex;gap:8px;align-items:center;padding:18px 22px 0;max-width:1700px;margin:auto}
-.bar-top b{margin-right:8px}
-#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;padding:18px 22px;max-width:1700px;margin:auto}
+:root{color-scheme:dark;--bg:#070b13;--card:rgba(15,23,38,.92);--in:#101a2a;--line:#23344b;--fg:#e6f2ff;--mut:#8297b2;--acc:#55e7ff;--acc2:#9b7bff;--hp:#ff5478;--mp:#4e9dff;--tg:#ffca67;--ok:#3ce6a0;--shadow:0 14px 36px #0005}
+*{box-sizing:border-box}html{min-height:100%;background:var(--bg)}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 12% -10%,#143450 0,transparent 42%),radial-gradient(ellipse at 95% 0,#261d4b 0,transparent 32%),linear-gradient(180deg,#080e18,#070b13 68%);color:var(--fg);font:13px/1.5 "Segoe UI",system-ui,sans-serif;letter-spacing:.01em}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.15;background-image:linear-gradient(#3b91b6 1px,transparent 1px),linear-gradient(90deg,#3b91b6 1px,transparent 1px);background-size:38px 38px;mask-image:linear-gradient(to bottom,#000,transparent 75%);z-index:0}
+header,nav,.bar-top,#grid{position:relative;z-index:1}header{display:flex;gap:12px;align-items:center;padding:18px 24px;border-bottom:1px solid #263a51;background:#080e18c9;backdrop-filter:blur(18px)}
+.logo{background:linear-gradient(135deg,var(--acc),var(--acc2));color:#06101a;border-radius:9px;width:34px;height:34px;display:grid;place-items:center;font-weight:900;font-size:17px;box-shadow:0 0 24px #55e7ff32}
+header b{font-size:16px;letter-spacing:.04em}.dot{color:var(--ok);text-shadow:0 0 12px #3ce6a0}.mut{color:var(--mut)}.sp{flex:1}
+#sum,#usage{font-size:11px;padding:5px 9px;border:1px solid #23384d;border-radius:7px;background:#0d1725}
+nav{display:flex;gap:28px;padding:0 24px;border-bottom:1px solid var(--line);background:#0a111dce}
+nav a{padding:14px 1px;color:var(--mut);cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.1em;transition:color .18s,border-color .18s}nav a:hover,nav a.on{color:var(--acc)}nav a.on{border-bottom:2px solid var(--acc);text-shadow:0 0 14px #55e7ff40}
+button,input[type=text],input[type=password]{background:#101b2b;color:var(--fg);border:1px solid #2a3c54;border-radius:8px;padding:9px 12px;font:inherit;transition:border-color .18s,background .18s,transform .18s}
+input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px #55e7ff14}
+button{cursor:pointer}button:hover{border-color:var(--acc);background:#17283b}button:active{transform:translateY(1px)}button.p{background:linear-gradient(120deg,#197e9d,#6356b9);border-color:#55cce9;color:white;box-shadow:0 0 18px #55e7ff12}
+.bar-top{display:flex;gap:9px;align-items:center;padding:22px 24px 0;max-width:1760px;margin:auto;flex-wrap:wrap}.bar-top>b{margin-right:5px;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:#d6e9fb}
+#q{min-width:190px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px;padding:18px 24px 32px;max-width:1760px;margin:auto}
 #grid.list{grid-template-columns:1fr}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.card.stale{opacity:.5}.card.sel{border-color:var(--acc)}
-.hd{display:flex;gap:8px;align-items:center;font-size:15px;font-weight:600}
-button.danger{border-color:var(--hp);color:var(--hp)}button.danger:hover{background:var(--hp);color:#fff}
-.x{margin-left:auto;padding:2px 8px;color:var(--mut)}.x:hover{color:var(--hp);border-color:var(--hp)}
-.tab{font:11px system-ui;font-weight:400;color:var(--mut);background:var(--in);padding:2px 7px;border-radius:4px}
-.pill{display:inline-block;margin:8px 0 12px;font-size:11px;padding:2px 9px;border-radius:99px;background:#12301d;color:var(--ok);border:1px solid #1d4a2c}
-.pill.off{background:#3a1a1a;color:var(--hp);border-color:#5a2a2a}
-.kv{display:grid;grid-template-columns:70px 1fr;gap:5px 8px}.kv span:nth-child(odd){color:var(--mut)}
-.bar{position:relative;height:12px;border-radius:99px;background:#222733;margin:4px 0;overflow:hidden}
-.bar i{position:absolute;inset:0 auto 0 0}.bar em{position:absolute;left:7px;font:10px/12px system-ui;font-style:normal}
-.tgt{background:var(--in);border-radius:8px;padding:10px;margin:12px 0}
+.card{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(17,28,45,.96),rgba(11,18,30,.96));border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:var(--shadow);transition:border-color .2s,transform .2s,box-shadow .2s}
+.card:before{content:"";position:absolute;top:0;left:16px;right:16px;height:1px;background:linear-gradient(90deg,transparent,var(--acc),var(--acc2),transparent);opacity:.5}
+.card:hover{border-color:#3d617a;box-shadow:0 16px 40px #0006,0 0 24px #55e7ff08;transform:translateY(-1px)}
+.card.stale{opacity:.57}.card.sel{border-color:var(--acc);box-shadow:0 0 0 1px #55e7ff25,0 0 25px #55e7ff12}
+.hd{display:flex;gap:8px;align-items:center;font-size:14px;font-weight:650;min-width:0}.hd .priv{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+button.danger{border-color:#74364b;color:var(--hp)}button.danger:hover{background:#6a263a;color:#fff}
+.x{margin-left:auto;padding:2px 8px;color:var(--mut);flex-shrink:0}.x:hover{color:var(--hp);border-color:var(--hp)}
+.tab{font:10px "Segoe UI",sans-serif;font-weight:700;letter-spacing:.06em;color:#a4c6dc;background:#10283a;padding:4px 8px;border-radius:5px;border:1px solid #24445c;white-space:nowrap}
+.pill{display:inline-flex;align-items:center;gap:6px;margin:10px 0 13px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:#0d332b;color:var(--ok);border:1px solid #1b6957}
+.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor}.pill.off{background:#351b2a;color:var(--hp);border-color:#713047}
+.kv{display:grid;grid-template-columns:74px minmax(0,1fr);gap:6px 9px}.kv span:nth-child(odd){color:var(--mut)}.kv span:nth-child(even){overflow-wrap:anywhere}
+.bar{position:relative;height:13px;border-radius:99px;background:#080f1b;border:1px solid #23344a;margin:6px 0;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;border-radius:99px;box-shadow:0 0 12px currentColor;transition:width .3s}.bar em{position:absolute;left:8px;font:10px/11px "Segoe UI",sans-serif;font-style:normal;color:#e9f5ff;text-shadow:0 1px 4px #000}
+.tgt{background:linear-gradient(135deg,#151d2c,#111a28);border:1px solid #344056;border-radius:10px;padding:11px;margin:13px 0}
 .tgt .t{display:flex;justify-content:space-between;margin-bottom:4px}.tgt .t span{color:var(--mut)}.tgt .t b{margin-left:6px;color:var(--fg)}
-.chip{display:inline-block;border:1px solid var(--tg);color:var(--fg);border-radius:99px;padding:1px 8px;font-size:11px;margin-top:2px}
-details{background:var(--in);border-radius:7px;margin-top:6px}
-summary{display:flex;justify-content:space-between;padding:9px 12px;cursor:pointer;list-style:none}
-summary::before{content:"\203A";margin-right:8px;color:var(--mut)}details[open] summary::before{content:"\2304"}
-summary span{flex:1}summary small{color:var(--mut);font-size:12px}
-.body{padding:2px 12px 10px;color:var(--mut)}.body div{display:flex;justify-content:space-between;padding:2px 0}.body b{color:var(--fg);font-weight:400}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;text-align:center}
-.stats div{background:var(--in);border-radius:7px;padding:7px 0}.stats b{display:block;font-size:15px}.stats small{color:var(--mut);font-size:11px}
-.ft{margin-top:10px;color:var(--mut);font-size:12px}
-table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:500}
-.blur .priv{filter:blur(6px)}
-dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px}
+.chip{display:inline-block;border:1px solid #77613c;color:var(--tg);background:#302718;border-radius:99px;padding:2px 9px;font-size:10px;margin-top:3px}
+details{background:#0d1624;border:1px solid #1f3045;border-radius:9px;margin-top:7px;overflow:hidden}
+summary{display:flex;justify-content:space-between;padding:10px 12px;cursor:pointer;list-style:none;color:#dce9f6}summary:hover{background:#142236}
+summary::before{content:"›";margin-right:9px;color:var(--acc);font-size:16px;line-height:1}details[open] summary::before{content:"⌄"}
+summary span{flex:1}summary small{color:var(--mut);font-size:11px;max-width:65%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.body{padding:4px 12px 11px;color:var(--mut)}.body div{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid #1c2a3c}.body div:last-child{border-bottom:0}.body b{color:var(--fg);font-weight:450;text-align:right;overflow-wrap:anywhere}
+.stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:13px;text-align:center}
+.stats div{background:linear-gradient(145deg,#111e2e,#0d1725);border:1px solid #203149;border-radius:8px;padding:8px 2px}.stats b{display:block;font-size:16px;color:#e7f6ff;font-variant-numeric:tabular-nums}.stats small{color:var(--mut);font-size:9px;letter-spacing:.04em;text-transform:uppercase}
+.ft{margin-top:11px;color:var(--mut);font-size:11px}
+table{width:100%;border-collapse:separate;border-spacing:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}th,td{text-align:left;padding:12px 14px;border-bottom:1px solid #1e2c40}th{color:#a6c2d9;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;background:#101c2b}tr:last-child td{border-bottom:0}tbody tr:hover,table tr:hover td{background:#122033}
+.blur .priv{filter:blur(6px);user-select:none}
+dialog{background:#0e1827;color:var(--fg);border:1px solid #35506a;border-radius:14px;box-shadow:0 24px 90px #000b;padding:22px;max-width:min(92vw,520px)}dialog::backdrop{background:#02050bd9;backdrop-filter:blur(5px)}dialog input{max-width:100%}dialog p{line-height:1.7}
+@media(max-width:760px){header{padding:14px;flex-wrap:wrap}#sum,#usage{order:3}nav{gap:20px;padding:0 14px;overflow-x:auto}nav a{white-space:nowrap}.bar-top{padding:16px 14px 0}.bar-top #q{flex:1;min-width:120px}#grid{grid-template-columns:1fr;padding:14px}.card{padding:14px}#stream{vertical-align:middle}header label{font-size:11px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;scroll-behavior:auto!important}}
 </style></head><body>
-<header><div class="logo">V</div><b>Skua Manager</b><span id="sum" class="mut"></span><span id="usage" class="mut">VibeSkua usage: checking…</span><span class="sp"></span>
+<header><div class="logo">V</div><b>SKUA <span style="color:var(--acc)">NEXUS</span></b><span id="sum" class="mut"></span><span id="usage" class="mut">VibeSkua usage: checking…</span><span class="sp"></span>
 <label><input type="checkbox" id="stream" checked> Streamer mode</label><button id="cfg">Settings</button></header>
 <nav><a class="on" data-t="bots">Bots</a><a data-t="scripts">Scripts</a><a data-t="accounts">Accounts</a><a data-t="resources">Resources</a></nav>
-<div class="bar-top"><b>Army</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button><button id="delsel" class="danger" hidden>Delete selected</button>
+<div class="bar-top"><b>OPERATIONS / ARMY</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button><button id="delsel" class="danger" hidden>Delete selected</button>
 <span class="sp"></span><button id="view">Grid View</button></div>
 <div id="grid"></div>
 <dialog id="confirmDlg"><p id="confirmText">Confirm deletion?</p><p><button id="confirmCancel">Cancel</button> <button class="danger" id="confirmDelete">Delete</button></p></dialog>
