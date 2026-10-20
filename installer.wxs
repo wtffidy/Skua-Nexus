@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Skua Dashboard"
+    Manufacturer="wtffidy"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="5D8F7E0A-3A7A-4D4E-9F31-74A6D74A5E61"
+    Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Skua Dashboard is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Skua Dashboard" />
+    </StandardDirectory>
+
+    <Feature Id="MainApplication" Title="Skua Dashboard" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="dist\**" />
+    </ComponentGroup>
+  </Fragment>
+</Wix>
