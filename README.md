@@ -29,6 +29,13 @@ The VibeSkua source repository is read-only for this dashboard project, so this 
 
 The relay now treats every received webhook as a fresh online heartbeat while tracking `stateUpdated` separately, and it preserves prior state when a ping contains no state snapshot.
 
+
+## VibeSkua process usage (Windows)
+
+The local relay exposes `/usage` and the dashboard header displays the detected VibeSkua process's CPU usage, working-set RAM, process uptime, and the number of online dashboard tabs. CPU is sampled from Windows process times and may take two polls to appear. RAM is the total working set for matching VibeSkua/Skua processes.
+
+These are **process-level** measurements. VibeSkua hosts multiple game tabs inside the same application process, so Windows does not provide reliable CPU or RAM attribution for each dashboard bot/tab from process counters alone. The active-tab count is based on dashboard bot heartbeats, not a separate measurement of the app's internal tab strip. The dashboard currently does not read the executable's product version.
+
 ## Security
 
 The relay binds to `127.0.0.1` by default. Keep it local unless you deliberately configure and secure remote access.
