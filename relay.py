@@ -495,8 +495,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, process_usage())
         elif path == "/ws":
             key = (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
-            if CFG["allowed_origins"] and self.headers.get("Origin", "") not in CFG["allowed_origins"] and not self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1")):
-                return self._send(403, b"origin not allowed")
             origin = self.headers.get("Origin", "")
             request_host = self.headers.get("Host", "")
             parsed_origin = urlparse(origin)
