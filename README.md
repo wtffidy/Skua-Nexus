@@ -101,6 +101,20 @@ Use a long, private Wi-Fi password and do not forward port 8787 on your router. 
 
 The dashboard is served locally at `http://127.0.0.1:8787/` on the PC. Use the PC's LAN IP or Tailscale URL only for remote devices.
 
+### Private remote access with Tailscale
+
+The Manager includes **Remote Access Setup** to check Tailscale and enable Tailscale Serve from the GUI.
+
+1. Install [Tailscale for Windows](https://tailscale.com/download/windows) on the PC running Skua Nexus, and install the Tailscale app on your phone.
+2. Sign both devices into the same Tailscale account/tailnet and confirm Tailscale shows connected on the PC.
+3. Start Skua Nexus and click **Remote Access Setup → Check / Enable**. This runs `tailscale status` and then `tailscale serve --bg 8787`.
+4. Find the private HTTPS URL by running `tailscale serve status` in a terminal on the PC. Open that URL on your phone while Tailscale is connected.
+5. Optionally add the URL to your phone's home screen.
+
+This uses **Tailscale Serve**, not Funnel. Serve keeps the URL within the user's tailnet; do not enable Funnel or create router port forwarding for port 8787. The PC, Skua Nexus relay, and Tailscale must remain running for access to work. The GUI needs the `tailscale` command available on PATH; if it cannot find it after installation, restart Skua Nexus.
+
+To inspect the Serve configuration, run `tailscale serve status`. To remove Tailscale Serve configuration, run `tailscale serve reset` in a terminal (this resets all Serve configuration on that PC, not only Skua Nexus).
+
 ## Manager appearance
 
 The Skua Nexus Manager has an **Appearance** control for selecting a custom background image (PNG, JPG/JPEG, WEBP, BMP, or GIF), adjusting window opacity from 60% to 100%, keeping the manager above other windows, and optionally opening the dashboard in your browser after the relay becomes ready. The log header also has **Open Relay Log** and **Clear** controls; Clear only clears the on-screen view, not the log file. Preferences are saved in `%APPDATA%\\SkuaDashboard\\ui-settings.json` and persist between launches. The Velopack build script installs Pillow when needed so the packaged manager can load common image formats.
