@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import queue
+import re
+import tempfile
 import subprocess
 import sys
 import threading
@@ -61,6 +63,7 @@ class DashboardApp(tk.Tk):
         self.process: subprocess.Popen | None = None
         self.relay_log_handle = None
         self.relay_log_path = APP_DATA / "relay.log"
+        self.current_version = self._read_current_version()
         self.ui_settings_path = APP_DATA / "ui-settings.json"
         self.ui_settings = self._load_ui_settings()
         self._background_original = None
@@ -139,6 +142,8 @@ class DashboardApp(tk.Tk):
             row=1, column=0, sticky="ew", padx=(0, 6), pady=5)
         self._button(actions, "Open Repository Folder", self.open_folder).grid(
             row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
+        self._button(actions, "Open Config", self.open_config).grid(
+            row=2, column=0, sticky="ew", padx=(0, 6), pady=5)
 
         log_header = tk.Frame(self, bg=BG)
         log_header.pack(fill="x", padx=24, pady=(16, 7))
@@ -370,6 +375,10 @@ class DashboardApp(tk.Tk):
                 elif kind == "restart_after_update":
                     self.stop_relay()
                     self.start_relay()
+                elif kind == "update_check":
+                    self._handle_update_check(message)
+                elif kind == "update_downloaded":
+                    self._launch_update_installer(message)
                 else:
                     self.log_message(message)
                     if kind == "error":
@@ -463,11 +472,143 @@ class DashboardApp(tk.Tk):
         self.stop_relay()
         self.start_relay()
 
+    def _read_current_version(self) -> str:
+        version_path = HERE / "version.txt"
+        try:
+            version = version_path.read_text(encoding="utf-8").strip()
+            if version:
+                return version
+        except OSError:
+            pass
+        return "0.0.0"
+
+    @staticmethod
+    def _version_tuple(value: str) -> tuple[int, ...]:
+        numbers = re.findall(r"\\d+", value)
+        return tuple(int(number) for number in numbers) if numbers else (0,)
+
     def pull_updates(self) -> None:
-        if FROZEN:
-            webbrowser.open("https://github.com/wtffidy/skua-dashboard/releases/latest")
-            self.log_message("Opened the latest release page. Install the new MSI to update.")
+        if not FROZEN:
+            if not (HERE / ".git").exists():
+                messagebox.showerror("Git repository not found", "This folder is not a Git checkout. Clone the dashboard repository first.")
+                return
+            if not messagebox.askyesno("Fetch latest updates", "Run git pull --ff-only for the dashboard repository?\\n\\nLocal edits that conflict with upstream changes may prevent the update."):
+                return
+
+            def pull() -> str:
+                result = subprocess.run(
+                    ["git", "pull", "--ff-only"], cwd=HERE, capture_output=True,
+                    text=True, timeout=120, check=False,
+                )
+                output = (result.stdout + result.stderr).strip()
+                if result.returncode != 0:
+                    raise RuntimeError(output or f"git exited with code {result.returncode}")
+                changed = "Already up to date" not in output and "Already up-to-date" not in output
+                self.messages.put(("log", output or "Git pull completed."))
+                if changed:
+                    self.messages.put(("log", "Updates were pulled; restarting relay to load them."))
+                    self.messages.put(("restart_after_update", ""))
+                return "updates pulled" if changed else "already up to date"
+
+            self.worker("Git update", pull)
             return
+
+        if self.busy:
+            self.log_message("Please wait for the current operation to finish.")
+            return
+        self.busy = True
+        self.status.configure(text="Checking for updates…", fg=AMBER)
+
+        def check() -> None:
+            try:
+                request = __import__("urllib.request", fromlist=["Request"]).Request(
+                    "https://api.github.com/repos/wtffidy/skua-dashboard/releases/latest",
+                    headers={"Accept": "application/vnd.github+json", "User-Agent": "Skua-Nexus-Manager"},
+                )
+                with urlopen(request, timeout=15) as response:
+                    release = json.loads(response.read().decode("utf-8"))
+                latest = str(release.get("tag_name", "")).strip().lstrip("vV")
+                if not latest:
+                    raise RuntimeError("The latest GitHub release has no version tag.")
+                if self._version_tuple(latest) <= self._version_tuple(self.current_version):
+                    self.messages.put(("update_check", {"status": "current", "latest": latest}))
+                    return
+                assets = release.get("assets", [])
+                installer = next((asset for asset in assets if str(asset.get("name", "")).lower().endswith("setup.exe")), None)
+                if installer is None:
+                    raise RuntimeError("A newer release was found, but its Setup.exe installer is missing from the GitHub release assets.")
+                self.messages.put(("update_check", {"status": "available", "latest": latest, "url": installer.get("browser_download_url", "")}))
+            except Exception as exc:
+                self.messages.put(("update_check", {"status": "error", "error": str(exc)}))
+
+        threading.Thread(target=check, daemon=True).start()
+
+    def _handle_update_check(self, result: dict[str, str]) -> None:
+        self.busy = False
+        status = result.get("status")
+        if status == "current":
+            self.status.configure(text="Up to date", fg=GREEN)
+            self.log_message(f"Update check complete. Installed version {self.current_version}; latest version {result.get('latest')}.")
+            messagebox.showinfo("No updates available", f"Skua Nexus Manager is up to date.\\n\\nInstalled: {self.current_version}\\nLatest: {result.get('latest')}", parent=self)
+            return
+        if status == "error":
+            self.status.configure(text="Update check failed", fg=RED)
+            self.log_message(f"Update check failed: {result.get('error', 'Unknown error')}")
+            messagebox.showerror("Update check failed", result.get("error", "Could not check for updates."), parent=self)
+            return
+        latest = result.get("latest", "unknown")
+        if messagebox.askyesno("Update available", f"Skua Nexus Manager {latest} is available.\\nInstalled version: {self.current_version}\\n\\nDownload and install it now?", parent=self):
+            self.status.configure(text="Downloading update…", fg=AMBER)
+            self.busy = True
+            threading.Thread(target=self._download_update, args=(result.get("url", ""), latest), daemon=True).start()
+        else:
+            self.status.configure(text="Update available", fg=AMBER)
+            self.log_message(f"Update {latest} is available; installation skipped.")
+
+    def _download_update(self, url: str, version: str) -> None:
+        try:
+            if not url.startswith("https://"):
+                raise RuntimeError("The installer download URL is missing or unsafe.")
+            destination = Path(tempfile.gettempdir()) / f"SkuaNexus-Setup-{version}.exe"
+            request = __import__("urllib.request", fromlist=["Request"]).Request(url, headers={"User-Agent": "Skua-Nexus-Manager"})
+            with urlopen(request, timeout=60) as response, destination.open("wb") as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output.write(chunk)
+            self.messages.put(("update_downloaded", str(destination)))
+        except Exception as exc:
+            self.messages.put(("error", f"Update download failed: {exc}"))
+            self.messages.put(("busy", ""))
+
+    def _launch_update_installer(self, installer_path: str) -> None:
+        self.busy = False
+        try:
+            self.log_message("Launching update installer and closing the manager…")
+            self.stop_relay()
+            subprocess.Popen([installer_path], cwd=str(Path(installer_path).parent))
+            if self.tray_icon is not None:
+                try:
+                    self.tray_icon.stop()
+                except Exception:
+                    pass
+                self.tray_icon = None
+            self.destroy()
+        except OSError as exc:
+            self.status.configure(text="Update installation failed", fg=RED)
+            messagebox.showerror("Could not launch installer", str(exc), parent=self)
+
+    def open_config(self) -> None:
+        APP_DATA.mkdir(parents=True, exist_ok=True)
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", str(APP_DATA)])
+            else:
+                webbrowser.open(APP_DATA.as_uri())
+            self.log_message(f"Opened config folder: {APP_DATA}")
+        except OSError as exc:
+            messagebox.showerror("Could not open config folder", str(exc))
         if not (HERE / ".git").exists():
             messagebox.showerror("Git repository not found", "This folder is not a Git checkout. Clone the dashboard repository first.")
             return
