@@ -14,6 +14,7 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Skua Dashboard" />
     </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
 
     <Feature Id="MainApplication" Title="Skua Dashboard" Level="1">
       <ComponentGroupRef Id="ApplicationFiles" />
@@ -31,7 +32,7 @@
       </Component>
     </ComponentGroup>
 
-    <Component Id="DesktopShortcutComponent" Directory="CommonDesktopFolder" Guid="*">
+    <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="*">
       <Shortcut
         Id="SkuaDashboardDesktopShortcut"
         Name="Skua Dashboard"
