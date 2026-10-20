@@ -30,12 +30,19 @@ if (-not (Test-Path $IndexPath)) {
 if ($UpdateTools) {
     Write-Host "Updating PyInstaller..."
     python -m pip install --upgrade pyinstaller
+    if ($LASTEXITCODE -ne 0) { throw "PyInstaller update failed." }
 }
 else {
-    Write-Host "Checking PyInstaller..."
-    python -m pip install pyinstaller
+    python -c "import PyInstaller" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Installing PyInstaller..."
+        python -m pip install pyinstaller
+        if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed." }
+    }
+    else {
+        Write-Host "PyInstaller is already installed; skipping pip."
+    }
 }
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed." }
 
 $Vpk = Join-Path $env:USERPROFILE ".dotnet\tools\vpk.exe"
 if (-not (Test-Path $Vpk)) {
@@ -47,8 +54,20 @@ if (-not (Test-Path $Vpk)) {
     throw "Could not find vpk.exe at $Vpk. Restart the terminal and try again."
 }
 
-if (Test-Path $BuildRoot) { Remove-Item $BuildRoot -Recurse -Force }
-New-Item -ItemType Directory -Path $DistRoot, $PackageDir -Force | Out-Null
+# Clear final outputs and spec files, but retain PyInstaller work caches for faster repeat builds.
+foreach ($Path in @(
+    $DistRoot,
+    $PackageDir,
+    (Join-Path $BuildRoot "spec-manager"),
+    (Join-Path $BuildRoot "spec-relay")
+)) {
+    if (Test-Path $Path) { Remove-Item $Path -Recurse -Force }
+}
+New-Item -ItemType Directory -Path $DistRoot, $PackageDir,
+    (Join-Path $BuildRoot "work-manager"),
+    (Join-Path $BuildRoot "work-relay"),
+    (Join-Path $BuildRoot "spec-manager"),
+    (Join-Path $BuildRoot "spec-relay") -Force | Out-Null
 
 Write-Host "Building SkuaManager and SkuaRelay in parallel..."
 $ManagerJob = Start-Job -Name "Build-SkuaManager" -ArgumentList $Root, $IconPath, $BuildRoot, $DistRoot -ScriptBlock {
