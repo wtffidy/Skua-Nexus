@@ -2,6 +2,7 @@
 """Dark, site-matched Windows companion for the Skua Dashboard."""
 from __future__ import annotations
 
+import json
 import os
 import queue
 import subprocess
@@ -10,7 +11,13 @@ import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
+
+try:
+    from PIL import Image, ImageTk
+except ImportError:
+    Image = None
+    ImageTk = None
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -49,10 +56,19 @@ class DashboardApp(tk.Tk):
         self.process: subprocess.Popen | None = None
         self.relay_log_handle = None
         self.relay_log_path = APP_DATA / "relay.log"
+        self.ui_settings_path = APP_DATA / "ui-settings.json"
+        self.ui_settings = self._load_ui_settings()
+        self._background_original = None
+        self._background_photo = None
+        self._background_label = None
+        self._background_path = str(self.ui_settings.get("background_image", ""))
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
         self.busy = False
 
         self._build_ui()
+        self._apply_opacity()
+        self._load_background_image()
+        self.bind("<Configure>", self._on_window_resize, add="+")
         self.log_message("Ready. Settings and bot data are stored in your AppData folder.")
         self.after(250, self.drain_messages)
         self.after(500, self.check_status)
@@ -77,6 +93,12 @@ class DashboardApp(tk.Tk):
                  font=("Segoe UI", 9, "bold")).pack(side="right")
 
         self._separator()
+
+        appearance_row = tk.Frame(self, bg=BG)
+        appearance_row.pack(fill="x", padx=22, pady=(8, 0))
+        tk.Label(appearance_row, text="PERSONALIZE YOUR NODE", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 8, "bold")).pack(side="left")
+        self._button(appearance_row, "Appearance", self.open_appearance_settings).pack(side="right")
 
         status_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
         status_card.pack(fill="x", padx=22, pady=(16, 12))
@@ -125,6 +147,132 @@ class DashboardApp(tk.Tk):
         self.log.pack(fill="both", expand=True)
         self.log.tag_configure("ok", foreground=GREEN)
         self.log.tag_configure("error", foreground=RED)
+
+    def _load_ui_settings(self) -> dict[str, object]:
+        try:
+            if self.ui_settings_path.is_file():
+                data = json.loads(self.ui_settings_path.read_text(encoding="utf-8"))
+                if isinstance(data, dict):
+                    return data
+        except (OSError, json.JSONDecodeError):
+            pass
+        return {"opacity": 100, "background_image": ""}
+
+    def _save_ui_settings(self) -> None:
+        try:
+            APP_DATA.mkdir(parents=True, exist_ok=True)
+            self.ui_settings_path.write_text(json.dumps(self.ui_settings, indent=2), encoding="utf-8")
+        except OSError as exc:
+            self.log_message(f"Could not save appearance settings: {exc}")
+
+    def _apply_opacity(self) -> None:
+        try:
+            opacity = max(60, min(100, int(self.ui_settings.get("opacity", 100))))
+            self.attributes("-alpha", opacity / 100)
+        except (tk.TclError, TypeError, ValueError):
+            pass
+
+    def _load_background_image(self) -> None:
+        if not self._background_path:
+            return
+        if Image is None or ImageTk is None:
+            self.log_message("Custom backgrounds require Pillow. Rebuild with the updated build script or install Pillow.")
+            return
+        try:
+            with Image.open(self._background_path) as source:
+                self._background_original = source.convert("RGB")
+            if self._background_label is None:
+                self._background_label = tk.Label(self, bd=0, highlightthickness=0)
+                self._background_label.place(x=0, y=0, relwidth=1, relheight=1)
+                self._background_label.lower()
+            self._render_background_image()
+        except (OSError, ValueError) as exc:
+            self.log_message(f"Could not load background image: {exc}")
+
+    def _render_background_image(self) -> None:
+        if self._background_original is None or self._background_label is None:
+            return
+        width = max(1, self.winfo_width())
+        height = max(1, self.winfo_height())
+        resized = self._background_original.resize((width, height), Image.Resampling.LANCZOS)
+        self._background_photo = ImageTk.PhotoImage(resized)
+        self._background_label.configure(image=self._background_photo)
+        self._background_label.lower()
+
+    def _on_window_resize(self, event: tk.Event) -> None:
+        if event.widget is self and self._background_original is not None:
+            self._render_background_image()
+
+    def open_appearance_settings(self) -> None:
+        dialog = tk.Toplevel(self)
+        dialog.title("Skua Nexus | Appearance")
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("470x250")
+        tk.Label(dialog, text="APPEARANCE SETTINGS", bg=BG, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(18, 4))
+        tk.Label(dialog, text="Choose a custom background image and adjust window opacity.", bg=BG, fg=MUTED, font=("Segoe UI", 9), wraplength=420, justify="left").pack(anchor="w", padx=20, pady=(0, 12))
+        image_row = tk.Frame(dialog, bg=BG)
+        image_row.pack(fill="x", padx=20)
+        tk.Label(image_row, text="Background image", bg=BG, fg=FG, font=("Segoe UI", 9, "bold")).pack(side="left")
+        self.background_path_label = tk.Label(image_row, text=Path(self._background_path).name if self._background_path else "None selected", bg=BG, fg=MUTED, font=("Segoe UI", 8), anchor="e")
+        self.background_path_label.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        image_buttons = tk.Frame(dialog, bg=BG)
+        image_buttons.pack(fill="x", padx=20, pady=(8, 14))
+        self._button(image_buttons, "Choose Image...", lambda: self._choose_background(dialog), primary=True).pack(side="left")
+        self._button(image_buttons, "Remove Image", lambda: self._clear_background(dialog)).pack(side="left", padx=(8, 0))
+        opacity_row = tk.Frame(dialog, bg=BG)
+        opacity_row.pack(fill="x", padx=20)
+        tk.Label(opacity_row, text="Window opacity", bg=BG, fg=FG, font=("Segoe UI", 9, "bold")).pack(side="left")
+        opacity_value = tk.Label(opacity_row, text=f"{int(self.ui_settings.get(chr(111)+chr(112)+chr(97)+chr(99)+chr(105)+chr(116)+chr(121), 100))}%", bg=BG, fg=ACCENT, font=("Segoe UI", 9, "bold"))
+        opacity_value.pack(side="right")
+        opacity_var = tk.IntVar(value=int(self.ui_settings.get("opacity", 100)))
+        def update_opacity(value: str) -> None:
+            opacity = max(60, min(100, int(float(value))))
+            opacity_value.configure(text=f"{opacity}%")
+            self.ui_settings["opacity"] = opacity
+            self._apply_opacity()
+        tk.Scale(dialog, from_=60, to=100, orient="horizontal", resolution=1, variable=opacity_var, command=update_opacity, showvalue=False, bg=BG, fg=FG, troughcolor=INNER, activebackground=ACCENT, highlightthickness=0, bd=0, length=420).pack(fill="x", padx=20, pady=(0, 10))
+        footer = tk.Frame(dialog, bg=BG)
+        footer.pack(fill="x", padx=20, pady=(0, 16))
+        self._button(footer, "Save", lambda: self._save_appearance(dialog), primary=True).pack(side="right")
+        self._button(footer, "Cancel", lambda: self._cancel_appearance(dialog)).pack(side="right", padx=(0, 8))
+        dialog.protocol("WM_DELETE_WINDOW", lambda: self._cancel_appearance(dialog))
+
+    def _choose_background(self, dialog: tk.Toplevel) -> None:
+        if Image is None or ImageTk is None:
+            messagebox.showerror("Image support unavailable", "Custom backgrounds need Pillow. Install it with python -m pip install Pillow, then restart the manager.", parent=dialog)
+            return
+        path = filedialog.askopenfilename(parent=dialog, title="Choose a background image", filetypes=[("Image files", "*.png *.jpg *.jpeg *.webp *.bmp *.gif"), ("All files", "*.*")])
+        if not path:
+            return
+        self._background_path = path
+        self.ui_settings["background_image"] = path
+        self.background_path_label.configure(text=Path(path).name)
+        self._background_original = None
+        self._load_background_image()
+
+    def _clear_background(self, dialog: tk.Toplevel) -> None:
+        self._background_path = ""
+        self.ui_settings["background_image"] = ""
+        self._background_original = None
+        self._background_photo = None
+        if self._background_label is not None:
+            self._background_label.configure(image="")
+            self._background_label.lower()
+        self.background_path_label.configure(text="None selected")
+
+    def _save_appearance(self, dialog: tk.Toplevel) -> None:
+        self._save_ui_settings()
+        self.log_message("Appearance settings saved.")
+        dialog.grab_release()
+        dialog.destroy()
+
+    def _cancel_appearance(self, dialog: tk.Toplevel) -> None:
+        self._save_ui_settings()
+        dialog.grab_release()
+        dialog.destroy()
 
     def _separator(self) -> None:
         tk.Frame(self, bg=LINE, height=1).pack(fill="x")
