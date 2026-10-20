@@ -25,3 +25,42 @@ The relay now treats every received webhook as a fresh online heartbeat while tr
 ## Security
 
 The relay binds to `127.0.0.1` by default. Keep it local unless you deliberately configure and secure remote access.
+
+## Mobile access (same Wi-Fi and away from home)
+
+The dashboard is served locally at `http://localhost:8787/`.
+
+### On the same home Wi-Fi
+
+1. Find your Windows PC's LAN IPv4 address with `ipconfig` (look for the active Wi-Fi/Ethernet adapter's `IPv4 Address`).
+2. For phone access, the dashboard server must listen on the LAN interface, not only `127.0.0.1`. If it is bound to localhost, a phone cannot reach it by using the PC's IP.
+3. Allow the dashboard port through Windows Firewall only on your **Private** network profile. Then open `http://<PC-LAN-IP>:8787/` on your phone.
+4. Keep the PC and phone on the same Wi-Fi. Some guest Wi-Fi networks isolate devices and prevent this connection.
+
+Do not expose the webhook relay or port 8787 directly to the public internet.
+
+### Away from home (private access with Tailscale)
+
+1. Install [Tailscale for Windows](https://tailscale.com/download/windows) on the PC and the Tailscale app on your phone.
+2. Sign in to the same tailnet on both devices.
+3. With the dashboard running on port 8787, run this in PowerShell on the PC:
+
+   ```powershell
+   tailscale serve --bg 8787
+   ```
+
+4. Follow any prompts and open the HTTPS URL printed by Tailscale on your phone while Tailscale is connected.
+5. Add that page to your phone's home screen for one-tap access.
+
+Use **Tailscale Serve**, not Funnel, to keep the dashboard private to your tailnet. The PC, relay, dashboard, and Tailscale must remain running for remote access to work.
+
+## Health ping / refresh interval
+
+The patched VibeSkua service sends one dashboard snapshot immediately when a script starts. Repeated snapshots are controlled by VibeSkua's `WebhookPingInterval` client setting, measured in **minutes**.
+
+- `0` (the default) disables recurring health pings, so you will see the initial snapshot but no later health updates.
+- Set `WebhookPingInterval` to `1` for a snapshot every minute, or `2` for every two minutes.
+- The timer only runs while a script is running; it stops when the script stops or errors.
+- Rebuild and run the patched VibeSkua client after changing its source patch. A settings-only change generally requires restarting the script so the timer is started again.
+
+The dashboard can only refresh fields when a new webhook snapshot arrives. This is periodic polling, not a continuous real-time stream.
