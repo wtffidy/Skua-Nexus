@@ -103,7 +103,7 @@ The dashboard is served locally at `http://127.0.0.1:8787/` on the PC. Use the P
 
 ## Manager appearance
 
-The Skua Nexus Manager has an **Appearance** control for selecting a custom background image (PNG, JPG/JPEG, WEBP, BMP, or GIF) and adjusting window opacity from 60% to 100%. Preferences are saved in `%APPDATA%\\SkuaDashboard\\ui-settings.json` and persist between launches. The Velopack build script installs Pillow when needed so the packaged manager can load common image formats.
+The Skua Nexus Manager has an **Appearance** control for selecting a custom background image (PNG, JPG/JPEG, WEBP, BMP, or GIF), adjusting window opacity from 60% to 100%, keeping the manager above other windows, and optionally opening the dashboard in your browser after the relay becomes ready. The log header also has **Open Relay Log** and **Clear** controls; Clear only clears the on-screen view, not the log file. Preferences are saved in `%APPDATA%\\SkuaDashboard\\ui-settings.json` and persist between launches. The Velopack build script installs Pillow when needed so the packaged manager can load common image formats.
 
 ### On the same home Wi-Fi
 
