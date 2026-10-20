@@ -118,7 +118,9 @@ function render() {
 
 let pollInFlight = false, ws = null, wsReconnect = null, wsConnected = false;
 function connectLive() {
-  if (location.protocol !== "http:" || !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/i.test(url)) return;
+  let relayOrigin;
+  try { relayOrigin = new URL(url, location.href); } catch { return; }
+  if (location.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(relayOrigin.hostname) || relayOrigin.origin !== location.origin) return;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   try {
     const wsUrl = url.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:") + "/ws";
