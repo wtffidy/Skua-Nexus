@@ -33,7 +33,7 @@ The relay now treats every received webhook as a fresh online heartbeat while tr
 
 ## Live updates with WebSockets
 
-When the dashboard is opened from the local relay at `http://localhost:8787/`, it connects to `/ws` and receives pushed snapshots when bot webhook data changes. Process usage is refreshed every two seconds while a browser is connected. The browser automatically reconnects if the connection drops. HTTP polling remains as a fallback when WebSockets are unavailable, including remote relay setups that do not expose the `/ws` endpoint.
+When the dashboard is opened from the relay on the same origin (including `http://<PC-LAN-IP>:8787/`), it connects to `/ws` and receives pushed snapshots when bot webhook data changes. Process usage is refreshed every two seconds while a browser is connected. The browser automatically reconnects if the connection drops. HTTP polling remains as a fallback when WebSockets are unavailable, including remote relay setups that do not expose the `/ws` endpoint.
 
 WebSockets only make relay-to-browser updates immediate; the client still has to send telemetry to the relay first.
 
@@ -43,9 +43,18 @@ The local relay exposes `/usage` and the dashboard header displays the detected 
 
 These are **process-level** measurements. VibeSkua hosts multiple game tabs inside the same application process, so Windows does not provide reliable CPU or RAM attribution for each dashboard bot/tab from process counters alone. The active-tab count is based on dashboard bot heartbeats, not a separate measurement of the app's internal tab strip. The executable product version is read from Windows file metadata when available.
 
-## Security
+## Security and LAN access
 
-The relay binds to `127.0.0.1` by default. Keep it local unless you deliberately configure and secure remote access.
+The relay listens on `0.0.0.0:8787` by default so devices on your private network can reach it. Localhost requests on the PC continue to work without a read key. Requests from other devices must supply the generated `read_key` from `config.json`; enter it in the dashboard's **Settings → Read/access key** field. The webhook's separate `push_key` is not the read key and should not be shared.
+
+For same-Wi-Fi access:
+
+1. Run `ipconfig` in Command Prompt and find the active adapter's IPv4 address.
+2. On your phone or another PC connected to the same trusted Wi-Fi, open `http://<PC-LAN-IP>:8787/`.
+3. Open **Settings** and paste the `read_key` value from the dashboard folder's `config.json`.
+4. If Windows Firewall prompts, allow Python only on **Private networks**. If you need to create a rule manually, scope it to your private LAN and TCP port 8787.
+
+Use a long, private Wi-Fi password and do not forward port 8787 on your router. Avoid guest Wi-Fi for the phone because device isolation may block access. If you do not want LAN access, set `"host": "127.0.0.1"` in `config.json` and restart the relay.
 
 ## Mobile access (same Wi-Fi and away from home)
 
@@ -55,7 +64,7 @@ The dashboard is served locally at `http://localhost:8787/`.
 
 1. Find your Windows PC's LAN IPv4 address with `ipconfig` (look for the active Wi-Fi/Ethernet adapter's `IPv4 Address`).
 2. For phone access, the dashboard server must listen on the LAN interface, not only `127.0.0.1`. If it is bound to localhost, a phone cannot reach it by using the PC's IP.
-3. Allow the dashboard port through Windows Firewall only on your **Private** network profile. Then open `http://<PC-LAN-IP>:8787/` on your phone.
+3. If Windows Firewall prompts, allow Python only on your **Private** network profile. Then open `http://<PC-LAN-IP>:8787/` on your phone and enter the `read_key` from `config.json` in Dashboard Settings.
 4. Keep the PC and phone on the same Wi-Fi. Some guest Wi-Fi networks isolate devices and prevent this connection.
 
 Do not expose the webhook relay or port 8787 directly to the public internet.
@@ -84,4 +93,4 @@ The patched VibeSkua service sends one dashboard snapshot immediately when a scr
 - The timer only runs while a script is running; it stops when the script stops or errors.
 - Rebuild and run the patched VibeSkua client after changing its source patch. A settings-only change generally requires restarting the script so the timer is started again.
 
-The dashboard can only refresh fields when a new webhook snapshot arrives. This is periodic polling, not a continuous real-time stream.
+WebSockets push each new snapshot to the dashboard immediately after the relay receives it; the VibeSkua client still needs to send snapshots periodically.
