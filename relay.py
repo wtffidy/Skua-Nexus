@@ -174,7 +174,7 @@ def record(body: dict[str, Any]) -> dict[str, Any]:
             "fields": fields or prev.get("fields", []),
         }
         DATA_PATH.write_text(json.dumps(BOTS, ensure_ascii=False))
-    print(time.strftime("%H:%M:%S"), name, "|", json.dumps(RAW[-1], ensure_ascii=False)[:300])
+    print(time.strftime("%H:%M:%S"), name, "|", json.dumps(RAW[-1], ensure_ascii=False))
     return body
 
 
