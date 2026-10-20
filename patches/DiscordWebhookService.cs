@@ -128,6 +128,15 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
             EnqueueAction(async () => await SendEmbedAsync("Script Started", $"**{GetBotName()}** has begun execution of **{scriptName}**.", 0x00FF00)); // Green
         }
             
+        // Send an initial dashboard snapshot immediately. WebhookPingInterval defaults to 0,
+        // which disables the periodic timer, so relying on the timer alone leaves the dashboard
+        // without character, equipment, and quest data after Script Started.
+        EnqueueAction(async () =>
+        {
+            List<object> fields = BuildDashboardSnapshotFields();
+            await SendEmbedAsync("Health Ping", $"**{GetBotName()}** is running.", 0x808080, fields);
+        });
+
         StartPingTimer();
     }
 
