@@ -7,6 +7,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# PowerShell 7 can turn native stderr output into a terminating error before $LASTEXITCODE is checked.
+$PSNativeCommandUseErrorActionPreference = $false
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
