@@ -50,7 +50,7 @@ dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);borde
 <div id="grid"></div>
 <dialog id="confirmDlg"><p id="confirmText">Confirm deletion?</p><p><button id="confirmCancel">Cancel</button> <button class="danger" id="confirmDelete">Delete</button></p></dialog>
 <dialog id="dlg"><p>Relay URL (default is the local relay.py)</p>
-<input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read key (only for the Cloudflare relay, otherwise leave empty)</p><input type="text" id="rkin" size="48" placeholder="your READ_KEY secret"><p><button class="p" id="save">Save</button></p></dialog>
+<input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read/access key (leave empty only for localhost)</p><input type="password" id="rkin" size="48" placeholder="read_key from config.json"><p><button class="p" id="save">Save</button></p></dialog>
 <script>
 // Display-only: data comes from whatever the client's webhook sends via the relay.
 const $ = s => document.querySelector(s);
@@ -120,10 +120,10 @@ let pollInFlight = false, ws = null, wsReconnect = null, wsConnected = false;
 function connectLive() {
   let relayOrigin;
   try { relayOrigin = new URL(url, location.href); } catch { return; }
-  if (location.protocol !== "http:" || !["localhost", "127.0.0.1"].includes(relayOrigin.hostname) || relayOrigin.origin !== location.origin) return;
+  if (location.protocol !== "http:" || relayOrigin.origin !== location.origin) return;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   try {
-    const wsUrl = url.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:") + "/ws";
+    const wsUrl = url.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:") + "/ws" + (rk ? "?key=" + encodeURIComponent(rk) : "");
     ws = new WebSocket(wsUrl);
     ws.onopen = () => { wsConnected = true; $("#sum").textContent = "Live connection connected"; };
     ws.onmessage = event => {
