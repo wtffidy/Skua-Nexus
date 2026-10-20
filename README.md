@@ -6,6 +6,17 @@ A browser dashboard and local Python relay for Skua/VibeSkua.
 
 Run `start.bat` on Windows. The dashboard is served at `http://localhost:8787`.
 
+## Desktop companion GUI (Windows)
+
+Run `start-gui.bat` to open a small desktop control window outside the browser. It uses Python's built-in Tkinter and does not need extra Python packages.
+
+- **Open / Reload Dashboard** opens the local dashboard in your default browser.
+- **Restart Relay** restarts the local Python relay.
+- **Fetch Latest Git Updates** runs `git pull --ff-only`; if updates are pulled, it restarts the relay so the new code is loaded.
+- **Open Repository Folder** opens this checkout in File Explorer.
+
+The GUI starts the relay automatically if it is not already reachable. Keep the companion open while you want it to manage the relay. The dashboard website itself remains unchanged.
+
 The relay receives JSON payloads sent to the client's configured webhook URL. Character and log information can be displayed when the client includes those values in its payload.
 
 ## Normal Windows VibeSkua: equipment, quests, and live status
