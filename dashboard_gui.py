@@ -22,29 +22,29 @@ URL = "http://localhost:8787/"
 RELAY = HERE / ("SkuaRelay.exe" if FROZEN else "relay.py")
 ICON = RESOURCE_DIR / "SkuaIcon.ico"
 
-BG = "#0d0e12"
-CARD = "#14161c"
-INNER = "#1b1e26"
-LINE = "#262a35"
-FG = "#e8eaf0"
-MUTED = "#8b93a5"
-ACCENT = "#7c6cff"
-GREEN = "#22c55e"
-AMBER = "#e5a82a"
-RED = "#e05555"
+BG = "#080D16"
+CARD = "#101A29"
+INNER = "#142237"
+LINE = "#263B53"
+FG = "#E6F2FF"
+MUTED = "#8297B2"
+ACCENT = "#55E7FF"
+GREEN = "#3CE6A0"
+AMBER = "#FFCA67"
+RED = "#FF5478"
 
 
 class DashboardApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Skua Manager")
+        self.title("Skua Nexus | Manager")
         if ICON.is_file():
             try:
                 self.iconbitmap(default=str(ICON))
             except tk.TclError:
                 pass
-        self.geometry("700x590")
-        self.minsize(620, 520)
+        self.geometry("760x640")
+        self.minsize(660, 560)
         self.configure(bg=BG)
         self.process: subprocess.Popen | None = None
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
@@ -60,17 +60,18 @@ class DashboardApp(tk.Tk):
         header = tk.Frame(self, bg=BG)
         header.pack(fill="x", padx=22, pady=(20, 14))
 
-        logo = tk.Label(header, text="V", bg=ACCENT, fg="#ffffff",
-                        font=("Segoe UI", 12, "bold"), width=2, height=1)
+        logo = tk.Label(header, text="V", bg=ACCENT, fg="#07121B",
+                        font=("Segoe UI", 14, "bold"), width=2, height=1,
+                        highlightthickness=1, highlightbackground="#8AF2FF")
         logo.pack(side="left", padx=(0, 10))
         title_area = tk.Frame(header, bg=BG)
         title_area.pack(side="left", fill="x", expand=True)
-        tk.Label(title_area, text="Skua Manager", bg=BG, fg=FG,
-                 font=("Segoe UI", 16, "bold")).pack(anchor="w")
-        tk.Label(title_area, text="LOCAL DASHBOARD CONTROL", bg=BG, fg=MUTED,
-                 font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(1, 0))
+        tk.Label(title_area, text="SKUA NEXUS", bg=BG, fg=FG,
+                 font=("Segoe UI", 17, "bold")).pack(anchor="w")
+        tk.Label(title_area, text="OPERATIONS CONTROL  /  LOCAL NODE", bg=BG, fg=ACCENT,
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(2, 0))
         tk.Label(header, text="●", bg=BG, fg=GREEN, font=("Segoe UI", 12)).pack(side="right", padx=(8, 0))
-        tk.Label(header, text="LOCAL", bg=BG, fg=MUTED,
+        tk.Label(header, text="LOCAL NODE", bg=BG, fg=MUTED,
                  font=("Segoe UI", 9, "bold")).pack(side="right")
 
         self._separator()
@@ -91,7 +92,7 @@ class DashboardApp(tk.Tk):
         tk.Label(status_inner, text=URL, bg=CARD, fg=MUTED,
                  font=("Consolas", 9)).pack(side="right")
 
-        tk.Label(self, text="QUICK ACTIONS", bg=BG, fg=MUTED,
+        tk.Label(self, text="CONTROL DECK  /  QUICK ACTIONS", bg=BG, fg=ACCENT,
                  font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=24, pady=(8, 7))
         actions = tk.Frame(self, bg=BG)
         actions.pack(fill="x", padx=22)
@@ -108,9 +109,9 @@ class DashboardApp(tk.Tk):
 
         log_header = tk.Frame(self, bg=BG)
         log_header.pack(fill="x", padx=24, pady=(16, 7))
-        tk.Label(log_header, text="ACTIVITY", bg=BG, fg=MUTED,
+        tk.Label(log_header, text="SYSTEM TELEMETRY", bg=BG, fg=ACCENT,
                  font=("Segoe UI", 9, "bold")).pack(side="left")
-        tk.Label(log_header, text="Updates and relay messages", bg=BG, fg=MUTED,
+        tk.Label(log_header, text="Live relay and update events", bg=BG, fg=MUTED,
                  font=("Segoe UI", 9)).pack(side="right")
 
         log_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
