@@ -535,7 +535,7 @@ class DashboardApp(tk.Tk):
         def check() -> None:
             try:
                 request = __import__("urllib.request", fromlist=["Request"]).Request(
-                    "https://api.github.com/repos/wtffidy/skua-dashboard/releases/latest",
+                    "https://api.github.com/repos/wtffidy/Skua-Nexus/releases/latest",
                     headers={"Accept": "application/vnd.github+json", "User-Agent": "Skua-Nexus-Manager"},
                 )
                 with urlopen(request, timeout=15) as response:
