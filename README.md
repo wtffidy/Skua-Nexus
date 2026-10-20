@@ -13,6 +13,10 @@ Run `start-gui.bat` to launch the desktop companion. It automatically starts the
 
 The GUI starts the relay automatically if it is not already reachable. Keep the companion open while you want it to manage the relay. The dashboard website itself remains unchanged.
 
+### Manager window icon
+
+The manager uses `SkuaIcon.ico` as its Windows title-bar/taskbar icon when the file is present in the repository folder. Download [SkuaIcon.ico](https://raw.githubusercontent.com/wtffidy/shit-yourself/main/SkuaIcon.ico) and save it beside `dashboard_gui.py` (the same folder as `start-gui.bat`), then close and reopen the manager. If the icon is missing, the manager falls back to the default Python/Tkinter icon.
+
 The relay receives JSON payloads sent to the client's configured webhook URL. Character and log information can be displayed when the client includes those values in its payload.
 
 ## Normal Windows VibeSkua: equipment, quests, and live status
