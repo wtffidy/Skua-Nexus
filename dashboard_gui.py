@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dark, site-matched Windows companion for the Skua Dashboard."""
+"""Dark, site-matched Windows companion for Skua Nexus."""
 from __future__ import annotations
 
 import json
