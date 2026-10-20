@@ -33,7 +33,28 @@ The GUI starts the relay automatically if it is not already reachable. Keep the 
 
 The manager uses `SkuaIcon.ico` as its Windows title-bar/taskbar icon when the file is present in the repository folder. Download [SkuaIcon.ico](https://raw.githubusercontent.com/wtffidy/shit-yourself/main/SkuaIcon.ico) and save it beside `dashboard_gui.py` (the same folder as `start-gui.bat`), then close and reopen the manager. If the icon is missing, the manager falls back to the default Python/Tkinter icon.
 
-The relay receives JSON payloads sent to the client's configured webhook URL. Character and log information can be displayed when the client includes those values in its payload.
+## Data path: VibeSkua → relay → dashboard / Discord
+
+There are two separate webhook settings:
+
+1. **VibeSkua client setting — Discord Webhook URL:** set this to the local relay URL printed when the relay starts:
+   `http://127.0.0.1:8787/api/webhooks/1/YOUR_PUSH_KEY`
+   Replace `YOUR_PUSH_KEY` with the `push_key` value in `%APPDATA%\\SkuaDashboard\\config.json`. Keep this key private. Do not put your real Discord webhook URL in the client when using the relay.
+2. **Relay setting — `discord_webhook`:** set this to the actual Discord channel webhook URL in the same `config.json`. The relay forwards client payloads to Discord only when this setting is non-empty. Dashboard updates do not require a Discord webhook.
+
+The expected path is **patched VibeSkua client → local relay → dashboard**, with optional relay → Discord forwarding. The relay listens on `127.0.0.1:8787` by default. The client must be the rebuilt VibeSkua binary that includes [the patch](patches/DiscordWebhookService.cs); putting the patch file in this repository does not modify an already-installed VibeSkua.
+
+### Troubleshooting when nothing arrives
+
+1. Start the dashboard manager and make sure the relay is running.
+2. In VibeSkua's client settings, check that **Discord Webhook URL** is the full local relay URL above, including the push key. A missing or incorrect key is rejected with HTTP `401`.
+3. Start a script in the patched client. The relay console prints each accepted JSON payload with a timestamp and bot name. A successful webhook POST returns HTTP `204`.
+4. If no payload appears in the relay console, confirm the client is the rebuilt/patched version and its URL and push key are correct. The relay does not automatically patch or replace the installed client.
+5. If payloads appear and the dashboard updates but Discord does not, check that `discord_webhook` in `config.json` is the actual Discord webhook URL. If it is empty, the relay intentionally does not forward messages.
+
+The relay's accepted push routes are `/hook` and `/api/webhooks/...`. The dashboard's read/access key is separate from the webhook `push_key` and is not used in the client URL. Never post either key or a real Discord webhook URL in logs or screenshots.
+
+The relay normalizes common Discord embed fields (including HP/MP, map, room, level, gold, AC, equipment, quest, inventory, and the Combat → Stats counters: kills, drops, quests completed, deaths, and relogins). It merges partial updates so notification-only webhooks do not erase the latest game snapshot. Every accepted webhook refreshes the bot heartbeat; `stateUpdated` tracks when game-state values were last updated.
 
 ## Normal Windows VibeSkua: equipment, quests, and live status
 
@@ -78,7 +99,7 @@ Use a long, private Wi-Fi password and do not forward port 8787 on your router. 
 
 ## Mobile access (same Wi-Fi and away from home)
 
-The dashboard is served locally at `http://localhost:8787/`.
+The dashboard is served locally at `http://127.0.0.1:8787/` on the PC. Use the PC's LAN IP or Tailscale URL only for remote devices.
 
 ### On the same home Wi-Fi
 
@@ -121,7 +142,7 @@ Use **Tailscale Serve**, not Funnel, to keep the dashboard private to your tailn
 
 The patched VibeSkua service sends one dashboard snapshot immediately when a script starts. Repeated snapshots are controlled by VibeSkua's `WebhookPingInterval` client setting, measured in **minutes**.
 
-- `0` (the default) disables recurring health pings, so you will see the initial snapshot but no later health updates.
+- The patched service defaults to a snapshot every **1 minute** when `WebhookPingInterval` is `0` or less.
 - Set `WebhookPingInterval` to `1` for a snapshot every minute, or `2` for every two minutes.
 - The timer only runs while a script is running; it stops when the script stops or errors.
 - Rebuild and run the patched VibeSkua client after changing its source patch. A settings-only change generally requires restarting the script so the timer is started again.
