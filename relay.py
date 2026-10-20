@@ -136,7 +136,7 @@ def record(body: dict) -> dict:
         description = str(current_embed.get("description") or "")
         # Accept common "Quest: ..." / "Equipment: ..." lines in descriptions too.
         for line in description.splitlines():
-            match = re.match(r"\\s*\\**([^:*]{1,40})\\**\\s*:\\s*(.+?)\\s*\\**$", line)
+            match = re.match(r"\s*\**([^:*]{1,40})\**\s*:\s*(.+?)\s*\**$", line)
             if not match:
                 continue
             label, value = match.group(1).strip(), match.group(2).strip()
@@ -152,7 +152,7 @@ def record(body: dict) -> dict:
                     if parsed is not None:
                         normalized[target] = parsed
                 else:
-                    normalized[target] = re.sub(r"\\*", "", value).strip()
+                    normalized[target] = re.sub(r"\*", "", value).strip()
             fields.append({"name": label, "value": value})
     now = int(time.time() * 1000)
     with LOCK:
