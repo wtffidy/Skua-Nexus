@@ -218,11 +218,12 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
         var settings = _settingsService.GetClient();
         if (settings == null) return;
 
-        // Keep dashboard counters live even when optional webhook pings are disabled.
-        // Respect a configured interval; otherwise refresh dashboard snapshots every minute.
-        int intervalMinutes = settings.WebhookPingInterval > 0 ? settings.WebhookPingInterval : 1;
+        // Refresh dashboard telemetry frequently by default. A positive WebhookPingInterval
+        // remains an explicit override measured in minutes.
+        int intervalMs = settings.WebhookPingInterval > 0
+            ? (int)TimeSpan.FromMinutes(settings.WebhookPingInterval).TotalMilliseconds
+            : (int)TimeSpan.FromSeconds(5).TotalMilliseconds;
         _pingTimer?.Dispose();
-        int intervalMs = (int)TimeSpan.FromMinutes(intervalMinutes).TotalMilliseconds;
         _pingTimer = new System.Threading.Timer(OnPingTimerElapsed, null, intervalMs, intervalMs);
     }
 
