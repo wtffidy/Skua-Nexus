@@ -5,6 +5,7 @@ Client webhook  ->  this script (localhost)  ->  Discord (optional, forwarded un
 GitHub Pages dashboard  ->  GET http://localhost:8787/bots
 """
 import json
+import re
 import secrets
 import threading
 import time
@@ -37,17 +38,27 @@ if DATA_PATH.exists():  # keep recent bots across restarts, drop anything older 
         BOTS = {}
 
 
+BOLD = re.compile(r"\*\*(.+?)\*\*")
+# Embed title keyword -> status shown on the card (first match wins)
+STATUS = (("start", "Running script"), ("conclud", "Stopped"), ("stop", "Stopped"), ("crash", "Crashed"), ("relog", "Relogging"))
+
+
 def record(body: dict) -> dict:
     """Store the bot's latest state; returns the body to forward (without our private 'stats' key)."""
     RAW.append(dict(body))
     stats = body.pop("stats", None) or {}
     e = (body.get("embeds") or [{}])[0] or {}
-    name = body.get("username") or (e.get("author") or {}).get("name") or (e.get("footer") or {}).get("text") or "unknown"
+    desc = e.get("description") or ""
+    bold = BOLD.findall(desc)  # alerts look like "**Account** has begun execution of **Script**."
+    name = body.get("username") or (e.get("author") or {}).get("name") or (bold[0] if bold else None) or (e.get("footer") or {}).get("text") or "unknown"
+    title = (e.get("title") or "").lower()
     with LOCK:
         prev = BOTS.get(name, {})
+        status = next((label for key, label in STATUS if key in title), None) or e.get("title") or prev.get("status")
+        script = bold[1] if len(bold) > 1 else prev.get("script")
         # Merge so earlier stats survive a plain text alert
-        BOTS[name] = {**prev, **stats, "name": name, "updated": int(time.time() * 1000),
-                      "last": body.get("content") or e.get("title") or prev.get("last"),
+        BOTS[name] = {**prev, "status": status, "script": script, **stats, "name": name, "updated": int(time.time() * 1000),
+                      "last": body.get("content") or desc.replace("**", "") or e.get("title") or prev.get("last"),
                       "fields": e.get("fields") or prev.get("fields")}
         DATA_PATH.write_text(json.dumps(BOTS))
     print(time.strftime("%H:%M:%S"), name, "|", json.dumps(RAW[-1])[:300])

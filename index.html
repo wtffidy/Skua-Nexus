@@ -66,7 +66,7 @@ function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
   return `<div class="card ${stale ? "stale" : ""} ${on ? "sel" : ""}">
   <div class="hd"><input type="checkbox" data-n="${esc(b.name)}" ${on ? "checked" : ""}><span class="tab">Tab ${i + 1}</span><span class="priv">${esc(b.name)}</span><button class="x" data-del="${esc(b.name)}" title="Remove this bot">&#10005;</button></div>
-  <span class="pill ${stale ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
+  <span class="pill ${stale || /stop|crash/i.test(b.status ?? "") ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
   <div class="kv"><span>Map</span><span>${esc(b.map ?? "-")}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
   <span>Level</span><span>${esc(b.level ?? "-")}${b.class ? " - " + esc(b.class) : ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
   <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv ? `${b.inv.used}/${b.inv.total}` : "-"}</span>
