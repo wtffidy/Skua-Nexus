@@ -21,7 +21,12 @@
 
   <Fragment>
     <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
-      <Files Include="dist\**" />
+      <Component Id="SkuaManagerComponent" Guid="*">
+        <File Id="SkuaManagerExe" Source="dist\SkuaManager.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="SkuaRelayComponent" Guid="*">
+        <File Id="SkuaRelayExe" Source="dist\SkuaRelay.exe" KeyPath="yes" />
+      </Component>
     </ComponentGroup>
   </Fragment>
 </Wix>
