@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Local relay for the Skua dashboard. Standard library only."""
 import json
+import os
 import re
 import secrets
 import threading
@@ -28,6 +29,8 @@ CFG = load_config()
 LOCK = threading.Lock()
 RAW: deque[dict[str, Any]] = deque(maxlen=20)
 BOTS: dict[str, dict[str, Any]] = {}
+_PROCESS_SAMPLES: dict[int, tuple[int, int]] = {}
+_USAGE_LOCK = threading.Lock()
 if DATA_PATH.exists():
     try:
         loaded = json.loads(DATA_PATH.read_text())
@@ -183,6 +186,132 @@ def record(body: dict[str, Any]) -> dict[str, Any]:
 
 
 
+def process_usage() -> dict[str, Any]:
+    """Return CPU, RAM, and uptime for the running Windows Skua/VibeSkua process(es)."""
+    if os.name != "nt":
+        return {"available": False, "reason": "Windows process metrics are only available on Windows."}
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        TH32CS_SNAPPROCESS = 0x00000002
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        PROCESS_VM_READ = 0x0010
+        PROCESS_MEMORY_COUNTERS_CLASS = 0
+
+        class PROCESSENTRY32W(ctypes.Structure):
+            _fields_ = [
+                ("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+                ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
+                ("dwFlags", wintypes.DWORD), ("szExeFile", wintypes.WCHAR * 260),
+            ]
+
+        class FILETIME(ctypes.Structure):
+            _fields_ = [("dwLowDateTime", wintypes.DWORD), ("dwHighDateTime", wintypes.DWORD)]
+
+        class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+            _fields_ = [
+                ("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+                ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+        kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+        kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32W)]
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes = [wintypes.HANDLE, ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME)]
+        kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESS_MEMORY_COUNTERS), wintypes.DWORD]
+        psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+
+        snapshot = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if snapshot == wintypes.HANDLE(-1).value:
+            return {"available": False, "reason": "Could not enumerate Windows processes."}
+
+        now = time.monotonic()
+        total_cpu_100ns = 0
+        total_memory = 0
+        oldest_creation = None
+        found = 0
+        current_samples: dict[int, tuple[int, int]] = {}
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        try:
+            has_entry = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+            while has_entry:
+                exe_name = entry.szExeFile.lower()
+                if exe_name in ("skua.exe", "vibeskua.exe") or (exe_name.startswith("vibeskua") and exe_name.endswith(".exe")):
+                    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, False, entry.th32ProcessID)
+                    if handle:
+                        try:
+                            created, exited, kernel_time, user_time = FILETIME(), FILETIME(), FILETIME(), FILETIME()
+                            if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited), ctypes.byref(kernel_time), ctypes.byref(user_time)):
+                                has_entry = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+                                continue
+                            to_int = lambda ft: (ft.dwHighDateTime << 32) | ft.dwLowDateTime
+                            creation = to_int(created)
+                            cpu_ticks = to_int(kernel_time) + to_int(user_time)
+                            current_samples[entry.th32ProcessID] = (cpu_ticks, int(now * 1_000_000_000))
+                            previous = _PROCESS_SAMPLES.get(entry.th32ProcessID)
+                            if previous:
+                                elapsed_100ns = max(1, int((now * 1_000_000_000 - previous[1]) / 100))
+                                cpu_delta = max(0, cpu_ticks - previous[0])
+                                total_cpu_100ns += int(cpu_delta / max(1, os.cpu_count() or 1))
+                                # CPU percentage is calculated below from elapsed wall time.
+                                current_samples[entry.th32ProcessID] = (cpu_ticks, int(now * 1_000_000_000))
+                            counters = PROCESS_MEMORY_COUNTERS()
+                            counters.cb = ctypes.sizeof(counters)
+                            if psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
+                                total_memory += counters.WorkingSetSize
+                            oldest_creation = creation if oldest_creation is None else min(oldest_creation, creation)
+                            found += 1
+                        finally:
+                            kernel32.CloseHandle(handle)
+                has_entry = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+        finally:
+            kernel32.CloseHandle(snapshot)
+
+        cpu_percent = None
+        with _USAGE_LOCK:
+            prior_samples = dict(_PROCESS_SAMPLES)
+            _PROCESS_SAMPLES.clear()
+            _PROCESS_SAMPLES.update(current_samples)
+        if prior_samples and found:
+            cpu_delta = 0
+            elapsed_ns = 0
+            for pid, (ticks, stamp) in current_samples.items():
+                old = prior_samples.get(pid)
+                if old:
+                    cpu_delta += max(0, ticks - old[0])
+                    elapsed_ns = max(elapsed_ns, stamp - old[1])
+            if elapsed_ns > 0:
+                cpu_percent = round(min(100.0, cpu_delta / (elapsed_ns / 100) / max(1, os.cpu_count() or 1) * 100), 1)
+
+        uptime_seconds = None
+        if oldest_creation is not None:
+            current_filetime = int((time.time() + 11644473600) * 10_000_000)
+            uptime_seconds = max(0, int((current_filetime - oldest_creation) / 10_000_000))
+        return {
+            "available": found > 0,
+            "processes": found,
+            "cpuPercent": cpu_percent,
+            "memoryBytes": total_memory,
+            "uptimeSeconds": uptime_seconds,
+            "processName": "VibeSkua",
+        }
+    except Exception as exc:
+        return {"available": False, "reason": f"Process metrics unavailable: {type(exc).__name__}"}
+
+
 def forward(body: dict[str, Any]) -> None:
     url = CFG["discord_webhook"]
     if not url:
@@ -229,6 +358,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/bots":
             with LOCK:
                 self._send(200, list(BOTS.values()))
+        elif path == "/usage":
+            self._send(200, process_usage())
         elif path == "/raw":
             with LOCK:
                 self._send(200, list(RAW))
