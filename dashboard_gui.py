@@ -307,6 +307,17 @@ class DashboardApp(tk.Tk):
 
 
 if __name__ == "__main__":
+    # Velopack starts the main executable with lifecycle arguments during install,
+    # update, and uninstall. Do not launch the interactive GUI for these hooks.
+    velopack_hook_args = {
+        "--veloapp-install",
+        "--veloapp-obsolete",
+        "--veloapp-updated",
+        "--veloapp-uninstall",
+    }
+    if any(argument in velopack_hook_args for argument in sys.argv[1:]):
+        raise SystemExit(0)
+
     app = DashboardApp()
     if not app.relay_responds():
         app.start_relay()
