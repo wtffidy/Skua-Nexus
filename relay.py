@@ -8,6 +8,7 @@ import os
 import re
 import secrets
 import socket
+import sys
 import struct
 import threading
 import time
@@ -19,7 +20,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
-CFG_PATH, DATA_PATH = HERE / "config.json", HERE / "bots.json"
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", HERE)) if getattr(sys, "frozen", False) else HERE
+APP_DATA = Path(os.environ.get("APPDATA", str(Path.home()))) / "SkuaDashboard"
+APP_DATA.mkdir(parents=True, exist_ok=True)
+CFG_PATH, DATA_PATH = APP_DATA / "config.json", APP_DATA / "bots.json"
 DEFAULTS = {"host": "0.0.0.0", "port": 8787, "push_key": "", "read_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
 
 
@@ -484,7 +488,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path
         if path in ("/", "/index.html"):
-            page = HERE / "index.html"
+            page = RESOURCE_DIR / "index.html"
             self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
         elif path in ("/bots", "/usage", "/raw") and not self._authorized():
             self._send(401, {"error": "unauthorized; enter the relay read_key in dashboard Settings"})
