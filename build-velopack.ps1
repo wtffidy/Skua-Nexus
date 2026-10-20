@@ -10,6 +10,13 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
+python -c "from PIL import Image, ImageTk" 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Installing Pillow for custom manager background images..."
+    python -m pip install Pillow
+    if ($LASTEXITCODE -ne 0) { throw "Pillow installation failed; custom background support cannot be packaged." }
+}
+
 $IconUrl = "https://raw.githubusercontent.com/wtffidy/shit-yourself/main/SkuaIcon.ico"
 $IconPath = Join-Path $Root "SkuaIcon.ico"
 $IndexPath = Join-Path $Root "index.html"
