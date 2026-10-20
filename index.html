@@ -3,72 +3,97 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Skua Manager</title>
 <style>
-:root{--bg:#0f1115;--card:#171a21;--line:#262b36;--fg:#e6e8ee;--mut:#8a91a3;--acc:#7c6cff;--hp:#e05555;--mp:#3b82f6;--tg:#e5a82a;--ok:#22c55e}
+:root{--bg:#0d0e12;--card:#14161c;--in:#1b1e26;--line:#262a35;--fg:#e8eaf0;--mut:#8b93a5;--acc:#7c6cff;--hp:#e05555;--mp:#3b82f6;--tg:#e5a82a;--ok:#22c55e}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:13px system-ui,sans-serif}
-header{display:flex;gap:14px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line)}
-header b{font-size:15px}.sp{flex:1}.mut{color:var(--mut)}
-button,input{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit}
-button{cursor:pointer}button:hover{border-color:var(--acc)}
-#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;padding:20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-.card.stale{opacity:.45}.hd{display:flex;gap:8px;align-items:center;margin-bottom:8px;font-size:14px;font-weight:600}
-.pill{font-size:11px;font-weight:400;padding:2px 8px;border-radius:99px;background:#16301f;color:var(--ok)}
-.pill.off{background:#3a1a1a;color:var(--hp)}
-.kv{display:grid;grid-template-columns:80px 1fr;gap:3px 8px;margin:10px 0}.kv span:nth-child(odd){color:var(--mut)}
+header{display:flex;gap:12px;align-items:center;padding:14px 22px}
+.logo{background:var(--acc);border-radius:6px;width:24px;height:24px;display:grid;place-items:center;font-weight:700}
+header b{font-size:15px}.dot{color:var(--ok)}.mut{color:var(--mut)}.sp{flex:1}
+nav{display:flex;gap:26px;padding:0 22px;border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
+nav a{padding:13px 0;color:var(--mut);cursor:default}nav a.on{color:var(--fg);border-bottom:2px solid var(--acc)}
+button,input[type=text]{background:var(--in);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:7px 12px;font:inherit}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.p{background:var(--acc);border-color:var(--acc)}
+.bar-top{display:flex;gap:8px;align-items:center;padding:18px 22px 0;max-width:1700px;margin:auto}
+.bar-top b{margin-right:8px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px;padding:18px 22px;max-width:1700px;margin:auto}
+#grid.list{grid-template-columns:1fr}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card.stale{opacity:.5}.card.sel{border-color:var(--acc)}
+.hd{display:flex;gap:8px;align-items:center;font-size:15px;font-weight:600}
+.tab{font:11px system-ui;font-weight:400;color:var(--mut);background:var(--in);padding:2px 7px;border-radius:4px}
+.pill{display:inline-block;margin:8px 0 12px;font-size:11px;padding:2px 9px;border-radius:99px;background:#12301d;color:var(--ok);border:1px solid #1d4a2c}
+.pill.off{background:#3a1a1a;color:var(--hp);border-color:#5a2a2a}
+.kv{display:grid;grid-template-columns:70px 1fr;gap:5px 8px}.kv span:nth-child(odd){color:var(--mut)}
 .bar{position:relative;height:12px;border-radius:99px;background:#222733;margin:4px 0;overflow:hidden}
-.bar i{position:absolute;inset:0 auto 0 0}.bar em{position:absolute;left:6px;font:10px/12px system-ui;font-style:normal}
-.row{display:flex;justify-content:space-between;background:#1d212b;border-radius:6px;padding:7px 10px;margin-top:6px}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:10px;text-align:center}
-.stats div{background:#1d212b;border-radius:6px;padding:6px 0}.stats b{display:block;font-size:15px}.stats small{color:var(--mut)}
+.bar i{position:absolute;inset:0 auto 0 0}.bar em{position:absolute;left:7px;font:10px/12px system-ui;font-style:normal}
+.tgt{background:var(--in);border-radius:8px;padding:10px;margin:12px 0}
+.tgt .t{display:flex;justify-content:space-between;margin-bottom:4px}.tgt .t span{color:var(--mut)}.tgt .t b{margin-left:6px;color:var(--fg)}
+.chip{display:inline-block;border:1px solid var(--tg);color:var(--fg);border-radius:99px;padding:1px 8px;font-size:11px;margin-top:2px}
+details{background:var(--in);border-radius:7px;margin-top:6px}
+summary{display:flex;justify-content:space-between;padding:9px 12px;cursor:pointer;list-style:none}
+summary::before{content:"\203A";margin-right:8px;color:var(--mut)}details[open] summary::before{content:"\2304"}
+summary span{flex:1}summary small{color:var(--mut);font-size:12px}
+.body{padding:2px 12px 10px;color:var(--mut)}.body div{display:flex;justify-content:space-between;padding:2px 0}.body b{color:var(--fg);font-weight:400}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;text-align:center}
+.stats div{background:var(--in);border-radius:7px;padding:7px 0}.stats b{display:block;font-size:15px}.stats small{color:var(--mut);font-size:11px}
+.ft{margin-top:10px;color:var(--mut);font-size:12px}
 .blur .priv{filter:blur(6px)}
 dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px}
 </style></head><body>
-<header><b>Skua Manager</b><span id="sum" class="mut"></span><span class="sp"></span>
-<label><input type="checkbox" id="stream" checked> Streamer mode</label>
-<button id="cfg">Settings</button></header>
+<header><div class="logo">V</div><b>Skua Manager</b><span id="sum" class="mut"></span><span class="sp"></span>
+<label><input type="checkbox" id="stream" checked> Streamer mode</label><button id="cfg">Settings</button></header>
+<nav><a class="on">Bots</a><a>Scripts</a><a>Accounts</a><a>Resources</a></nav>
+<div class="bar-top"><b>Army</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button>
+<span class="sp"></span><button id="view">Grid View</button></div>
 <div id="grid"></div>
 <dialog id="dlg"><p>Relay URL (your Worker, no trailing slash)</p>
-<input id="url" size="46" placeholder="https://skua-relay.you.workers.dev"><p><button id="save">Save</button></p></dialog>
+<input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p><button class="p" id="save">Save</button></p></dialog>
 <script>
-// Config lives in the browser only; the key is never needed to READ.
+// Display-only: data comes from whatever the client's webhook sends via the relay.
 const $ = s => document.querySelector(s);
-const STALE = 180000; // 3 min: allows a 1-min webhook ping interval
+const STALE = 180000; // 3 min offline cutoff (works with a 1-min ping interval)
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => (n ?? 0).toLocaleString();
 const pct = (a, b) => b ? Math.min(100, a / b * 100) : 0;
-let url = localStorage.getItem("relay") || "";
+let url = localStorage.getItem("relay") || "", bots = [], picked = new Set();
 
-const bar = (c, m, col, lbl) =>
-  `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
+const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
+const sec = (title, val, rows) => `<details><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body">${rows || "<div>No data</div>"}</div></details>`;
+const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
 
-function card(b) {
-  const stale = Date.now() - b.updated > STALE; // no heartbeat for 30s = offline
-  const t = b.target;
-  return `<div class="card ${stale ? "stale" : ""}">
-  <div class="hd"><span class="priv">${b.name}</span><span class="pill ${stale ? "off" : ""}">${stale ? "Offline" : b.status ?? "Running"}</span></div>
-  <div class="kv"><span>Map</span><span>${b.map ?? "-"}</span><span>Room</span><span class="priv">${b.room ?? "-"}</span>
-  <span>Level</span><span>${b.level ?? "-"} - ${b.class ?? ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
-  <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv?.used ?? 0}/${b.inv?.total ?? 0}</span>
-  <span>Script</span><span>${b.script ?? "-"}</span></div>
-  ${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}
-  ${t ? `<div class="row"><span>Target <b>${t.name}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}` : ""}
-  ${b.last ? `<div class="row"><span class="mut">Last</span><span>${b.last}</span></div>` : ""}
-  ${(b.fields ?? []).map(f => `<div class="row"><span class="mut">${f.name}</span><span>${f.value}</span></div>`).join("")}
-  <div class="row"><span class="mut">Quest</span><span>${b.quest ?? "-"}</span></div>
-  <div class="row"><span class="mut">Equipment</span><span>${b.weapon ?? "-"}</span></div>
-  <div class="stats">${[["kills","Kills"],["drops","Drops"],["quests","Quests"],["deaths","Deaths"],["relogins","Relogins"]]
-    .map(([k, l]) => `<div><b>${fmt(b[k])}</b><small>${l}</small></div>`).join("")}</div></div>`;
+function card(b, i) {
+  const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
+  return `<div class="card ${stale ? "stale" : ""} ${on ? "sel" : ""}">
+  <div class="hd"><input type="checkbox" data-n="${esc(b.name)}" ${on ? "checked" : ""}><span class="tab">Tab ${i + 1}</span><span class="priv">${esc(b.name)}</span></div>
+  <span class="pill ${stale ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
+  <div class="kv"><span>Map</span><span>${esc(b.map ?? "-")}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
+  <span>Level</span><span>${esc(b.level ?? "-")}${b.class ? " - " + esc(b.class) : ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
+  <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv ? `${b.inv.used}/${b.inv.total}` : "-"}</span>
+  <span>Script</span><span>${esc(b.script ?? "-")}</span></div>
+  <div style="margin-top:14px">${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}</div>
+  ${t ? `<div class="tgt"><div class="t"><span>Target <b>${esc(t.name)}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}<span class="chip">${esc(t.name)}</span></div>` : ""}
+  ${sec("Quest", b.quest ?? "-", "")}${sec("Equipment", b.weapon ?? "-", "")}
+  ${sec("Character", "", rows(b.fields))}${sec("Log", "", b.last ? `<div>${esc(b.last)}</div>` : "")}
+  <div class="stats">${[["kills","Kills"],["drops","Drops"],["quests","Quests"],["deaths","Deaths"],["relogins","Relogins"]].map(([k, l]) => `<div><b>${fmt(b[k])}</b><small>${l}</small></div>`).join("")}</div>
+  ${b.skuaMem || b.gameMem ? `<div class="ft">Skua ${esc(b.skuaMem ?? "-")} &nbsp; Game ${esc(b.gameMem ?? "-")}</div>` : ""}</div>`;
+}
+
+function render() {
+  const q = $("#q").value.toLowerCase(), list = bots.filter(b => b.name.toLowerCase().includes(q));
+  $("#grid").innerHTML = list.map(card).join("") || `<p class="mut">No bots yet. Click Test Discord Webhook in a client.</p>`;
+  const on = bots.filter(b => Date.now() - b.updated < STALE).length;
+  $("#sum").innerHTML = `<span class="dot">&#9679;</span> ${on}/${bots.length} online | ${fmt(bots.reduce((s, b) => s + (b.kills ?? 0), 0))} kills`;
 }
 
 async function poll() {
   if (!url) return;
-  try {
-    const bots = await (await fetch(url + "/bots", { cache: "no-store" })).json();
-    bots.sort((a, b) => a.name.localeCompare(b.name));
-    $("#grid").innerHTML = bots.map(card).join("");
-    $("#sum").textContent = `${bots.filter(b => Date.now() - b.updated < STALE).length}/${bots.length} online`;
-  } catch { $("#sum").textContent = "Relay unreachable"; }
+  try { bots = (await (await fetch(url + "/bots", { cache: "no-store" })).json()).sort((a, b) => a.name.localeCompare(b.name)); render(); }
+  catch { $("#sum").textContent = "Relay unreachable"; }
 }
 
+$("#grid").onchange = e => { const n = e.target.dataset.n; if (n) { e.target.checked ? picked.add(n) : picked.delete(n); render(); } };
+$("#all").onclick = () => { bots.forEach(b => picked.add(b.name)); render(); };
+$("#q").oninput = render;
+$("#view").onclick = e => { const l = $("#grid").classList.toggle("list"); e.target.textContent = l ? "List View" : "Grid View"; };
 $("#stream").onchange = e => document.body.classList.toggle("blur", e.target.checked);
 document.body.classList.add("blur");
 $("#cfg").onclick = () => { $("#url").value = url; $("#dlg").showModal(); };
