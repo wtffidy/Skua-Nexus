@@ -91,21 +91,21 @@ def extract_stats(body: dict, embed: dict) -> tuple[dict, list]:
         key = clean_label(label)
         if key in ("hp", "health", "health points"):
             pair = parse_pair(value)
-            if pair and "hp" not in stats:
+            if pair:
                 stats["hp"] = pair
             continue
         if key in ("mp", "mana", "mana points"):
             pair = parse_pair(value)
-            if pair and "mp" not in stats:
+            if pair:
                 stats["mp"] = pair
             continue
         if key in ("inventory", "inv", "inventory slots"):
             pair = parse_pair(value)
-            if pair and "inv" not in stats:
+            if pair:
                 stats["inv"] = {"used": pair["cur"], "total": pair["max"]}
             continue
         target = ALIASES.get(key)
-        if target and target not in stats and value:
+        if target and value:
             if target in ("gold", "ac", "level", "kills", "drops", "quests", "deaths", "relogins", "skuaMem", "gameMem"):
                 parsed = number(value)
                 if parsed is not None:
@@ -146,7 +146,7 @@ def record(body: dict) -> dict:
                 normalized["quest"] = value
             elif key in ("equipment", "equip", "weapon", "equipped weapon", "equipped items", "gear"):
                 normalized["weapon"] = value
-            elif target and value and target not in normalized:
+            elif target and value:
                 if target in ("gold", "ac", "level", "kills", "drops", "quests", "deaths", "relogins", "skuaMem", "gameMem"):
                     parsed = number(value)
                     if parsed is not None:
