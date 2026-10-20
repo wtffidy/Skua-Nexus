@@ -2,6 +2,7 @@
 """Dark, site-matched Windows companion for the Skua Dashboard."""
 from __future__ import annotations
 
+import os
 import queue
 import subprocess
 import sys
@@ -13,10 +14,13 @@ from tkinter import messagebox
 from urllib.error import URLError
 from urllib.request import urlopen
 
-HERE = Path(__file__).resolve().parent
+FROZEN = bool(getattr(sys, "frozen", False))
+HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+APP_DATA = Path(os.environ.get("APPDATA", str(Path.home()))) / "SkuaDashboard"
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", HERE)) if FROZEN else HERE
 URL = "http://localhost:8787/"
-RELAY = HERE / "relay.py"
-ICON = HERE / "SkuaIcon.ico"
+RELAY = HERE / ("SkuaRelay.exe" if FROZEN else "relay.py")
+ICON = RESOURCE_DIR / "SkuaIcon.ico"
 
 BG = "#0d0e12"
 CARD = "#14161c"
@@ -47,7 +51,7 @@ class DashboardApp(tk.Tk):
         self.busy = False
 
         self._build_ui()
-        self.log_message("Ready. Git updates use a safe fast-forward-only pull.")
+        self.log_message("Ready. Settings and bot data are stored in your AppData folder.")
         self.after(250, self.drain_messages)
         self.after(500, self.check_status)
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -97,7 +101,7 @@ class DashboardApp(tk.Tk):
             row=0, column=0, sticky="ew", padx=(0, 6), pady=5)
         self._button(actions, "Restart Relay", self.restart_relay).grid(
             row=0, column=1, sticky="ew", padx=(6, 0), pady=5)
-        self._button(actions, "Fetch Latest Git Updates", self.pull_updates, primary=True).grid(
+        self._button(actions, "Check for Updates" if FROZEN else "Fetch Latest Git Updates", self.pull_updates, primary=True).grid(
             row=1, column=0, sticky="ew", padx=(0, 6), pady=5)
         self._button(actions, "Open Repository Folder", self.open_folder).grid(
             row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
@@ -201,12 +205,13 @@ class DashboardApp(tk.Tk):
             self.log_message("Relay process is already running.")
             return
         if not RELAY.exists():
-            messagebox.showerror("Missing file", f"Could not find relay.py at:\n{RELAY}")
+            messagebox.showerror("Missing file", f"Could not find the relay at:\n{RELAY}")
             return
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         try:
-            self.process = subprocess.Popen([sys.executable, str(RELAY)], cwd=HERE, creationflags=flags)
-            self.log_message("Started relay.py.")
+            command = [str(RELAY)] if FROZEN else [sys.executable, str(RELAY)]
+            self.process = subprocess.Popen(command, cwd=HERE, creationflags=flags)
+            self.log_message("Started Skua relay.")
         except OSError as exc:
             messagebox.showerror("Could not start relay", str(exc))
 
@@ -226,6 +231,10 @@ class DashboardApp(tk.Tk):
         self.start_relay()
 
     def pull_updates(self) -> None:
+        if FROZEN:
+            webbrowser.open("https://github.com/wtffidy/skua-dashboard/releases/latest")
+            self.log_message("Opened the latest release page. Install the new MSI to update.")
+            return
         if not (HERE / ".git").exists():
             messagebox.showerror("Git repository not found", "This folder is not a Git checkout. Clone the dashboard repository first.")
             return
@@ -250,11 +259,13 @@ class DashboardApp(tk.Tk):
         self.worker("Git update", pull)
 
     def open_folder(self) -> None:
+        folder = APP_DATA if FROZEN else HERE
+        folder.mkdir(parents=True, exist_ok=True)
         try:
             if sys.platform == "win32":
-                subprocess.Popen(["explorer", str(HERE)])
+                subprocess.Popen(["explorer", str(folder)])
             else:
-                webbrowser.open(HERE.as_uri())
+                webbrowser.open(folder.as_uri())
         except OSError as exc:
             messagebox.showerror("Could not open folder", str(exc))
 
