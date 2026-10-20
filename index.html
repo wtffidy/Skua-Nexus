@@ -113,8 +113,10 @@ document.querySelectorAll("nav a").forEach(a => a.onclick = () => {
   tab = a.dataset.t; document.querySelectorAll("nav a").forEach(x => x.classList.toggle("on", x === a)); render();
 });
 $("#view").onclick = e => { const l = $("#grid").classList.toggle("list"); e.target.textContent = l ? "List View" : "Grid View"; };
-$("#stream").onchange = e => document.body.classList.toggle("blur", e.target.checked);
-document.body.classList.add("blur");
+// Streamer mode: on by default for privacy, then remembers your choice in this browser
+const sm = localStorage.getItem("stream") !== "0";
+$("#stream").checked = sm; document.body.classList.toggle("blur", sm);
+$("#stream").onchange = e => { document.body.classList.toggle("blur", e.target.checked); localStorage.setItem("stream", e.target.checked ? "1" : "0"); };
 $("#cfg").onclick = () => { $("#url").value = url; $("#rkin").value = rk; $("#dlg").showModal(); };
 $("#save").onclick = () => { url = $("#url").value.trim().replace(/\/$/, ""); rk = $("#rkin").value.trim(); localStorage.setItem("relay", url); localStorage.setItem("rk", rk); $("#dlg").close(); poll(); };
 if (!url || !rk) $("#dlg").showModal();
