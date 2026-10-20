@@ -2,3 +2,4 @@ config.json
 bots.json
 /build-velopack
 /Releases
+Build.bat
