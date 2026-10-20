@@ -7,6 +7,7 @@ import threading
 import time
 import urllib.request
 from collections import deque
+from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
@@ -16,7 +17,7 @@ CFG_PATH, DATA_PATH = HERE / "config.json", HERE / "bots.json"
 DEFAULTS = {"port": 8787, "push_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
 
 
-def load_config() -> dict:
+def load_config() -> dict[str, Any]:
     cfg = {**DEFAULTS, **(json.loads(CFG_PATH.read_text()) if CFG_PATH.exists() else {})}
     cfg["push_key"] = cfg["push_key"] or secrets.token_hex(12)
     CFG_PATH.write_text(json.dumps(cfg, indent=2))
@@ -25,8 +26,8 @@ def load_config() -> dict:
 
 CFG = load_config()
 LOCK = threading.Lock()
-RAW = deque(maxlen=20)
-BOTS = {}
+RAW: deque[dict[str, Any]] = deque(maxlen=20)
+BOTS: dict[str, dict[str, Any]] = {}
 if DATA_PATH.exists():
     try:
         loaded = json.loads(DATA_PATH.read_text())
@@ -55,7 +56,7 @@ def clean_label(value) -> str:
     return re.sub(r"[^a-z0-9 ]", "", str(value or "").lower()).strip()
 
 
-def number(value):
+def number(value: object) -> int | None:
     match = NUMBER.search(str(value or ""))
     if not match:
         return None
@@ -65,7 +66,7 @@ def number(value):
         return None
 
 
-def parse_pair(value):
+def parse_pair(value: object) -> dict[str, int] | None:
     nums = NUMBER.findall(str(value or ""))
     if len(nums) < 2:
         return None
@@ -75,12 +76,12 @@ def parse_pair(value):
         return None
 
 
-def extract_stats(body: dict, embed: dict) -> tuple[dict, list]:
+def extract_stats(body: dict[str, Any], embed: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, str]]]:
     """Normalize custom stats and common Discord embed fields into dashboard properties."""
     raw_stats = body.get("stats")
     stats = dict(raw_stats) if isinstance(raw_stats, dict) else {}
     fields = embed.get("fields") or []
-    visible_fields = []
+    visible_fields: list[dict[str, str]] = []
     for field in fields:
         if not isinstance(field, dict):
             continue
@@ -115,10 +116,10 @@ def extract_stats(body: dict, embed: dict) -> tuple[dict, list]:
     return stats, visible_fields
 
 
-def record(body: dict) -> dict:
+def record(body: dict[str, Any]) -> dict[str, Any]:
     """Store bot state and return the webhook body for optional Discord forwarding."""
     RAW.append(dict(body))
-    stats = body.get("stats") if isinstance(body.get("stats"), dict) else {}
+    stats: dict[str, Any] = body.get("stats") if isinstance(body.get("stats"), dict) else {}
     embeds = [e for e in (body.get("embeds") or []) if isinstance(e, dict)] or [{}]
     embed = embeds[0]
     desc = "\n".join(str(e.get("description") or "") for e in embeds)
@@ -126,8 +127,8 @@ def record(body: dict) -> dict:
     name = (body.get("username") or (embed.get("author") or {}).get("name") or
             (bold[0] if bold else None) or (embed.get("footer") or {}).get("text") or "unknown")
     title = " ".join(str(e.get("title") or "") for e in embeds).lower()
-    normalized = dict(stats)
-    fields = []
+    normalized: dict[str, Any] = dict(stats)
+    fields: list[dict[str, str]] = []
     # Data may be split across multiple Discord embeds by the client.
     for current_embed in embeds:
         embed_stats, embed_fields = extract_stats({"stats": normalized}, current_embed)
@@ -177,7 +178,7 @@ def record(body: dict) -> dict:
 
 
 
-def forward(body: dict) -> None:
+def forward(body: dict[str, Any]) -> None:
     url = CFG["discord_webhook"]
     if not url:
         return
@@ -190,7 +191,7 @@ def forward(body: dict) -> None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         pass
 
     def _cors(self) -> None:
@@ -202,8 +203,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")
 
-    def _send(self, code: int, body=b"", ctype: str = "application/json") -> None:
-        data = json.dumps(body).encode() if isinstance(body, (dict, list)) else body
+    def _send(self, code: int, body: Any = b"", ctype: str = "application/json") -> None:
+        data: bytes = json.dumps(body).encode() if isinstance(body, (dict, list)) else body if isinstance(body, bytes) else str(body).encode()
         self.send_response(code)
         self._cors()
         self.send_header("Content-Type", ctype)
