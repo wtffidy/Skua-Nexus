@@ -118,15 +118,42 @@ def extract_stats(body: dict, embed: dict) -> tuple[dict, list]:
 def record(body: dict) -> dict:
     """Store bot state and return the webhook body for optional Discord forwarding."""
     RAW.append(dict(body))
-    stats = body.pop("stats", None) or {}
-    embeds = body.get("embeds") or [{}]
-    embed = embeds[0] if embeds and isinstance(embeds[0], dict) else {}
-    desc = embed.get("description") or ""
+    stats = body.get("stats") if isinstance(body.get("stats"), dict) else {}
+    embeds = [e for e in (body.get("embeds") or []) if isinstance(e, dict)] or [{}]
+    embed = embeds[0]
+    desc = "\\n".join(str(e.get("description") or "") for e in embeds)
     bold = BOLD.findall(desc)
     name = (body.get("username") or (embed.get("author") or {}).get("name") or
             (bold[0] if bold else None) or (embed.get("footer") or {}).get("text") or "unknown")
-    title = (embed.get("title") or "").lower()
-    normalized, fields = extract_stats({"stats": stats}, embed)
+    title = " ".join(str(e.get("title") or "") for e in embeds).lower()
+    normalized = dict(stats)
+    fields = []
+    # Data may be split across multiple Discord embeds by the client.
+    for current_embed in embeds:
+        embed_stats, embed_fields = extract_stats({"stats": normalized}, current_embed)
+        normalized.update(embed_stats)
+        fields.extend(embed_fields)
+        description = str(current_embed.get("description") or "")
+        # Accept common "Quest: ..." / "Equipment: ..." lines in descriptions too.
+        for line in description.splitlines():
+            match = re.match(r"\\s*\\**([^:*]{1,40})\\**\\s*:\\s*(.+?)\\s*\\**$", line)
+            if not match:
+                continue
+            label, value = match.group(1).strip(), match.group(2).strip()
+            key = clean_label(label)
+            target = ALIASES.get(key)
+            if key in ("quest", "current quest", "quest name", "active quest"):
+                normalized["quest"] = value
+            elif key in ("equipment", "equip", "weapon", "equipped weapon", "equipped items", "gear"):
+                normalized["weapon"] = value
+            elif target and value and target not in normalized:
+                if target in ("gold", "ac", "level", "kills", "drops", "quests", "deaths", "relogins", "skuaMem", "gameMem"):
+                    parsed = number(value)
+                    if parsed is not None:
+                        normalized[target] = parsed
+                else:
+                    normalized[target] = re.sub(r"\\*", "", value).strip()
+            fields.append({"name": label, "value": value})
     now = int(time.time() * 1000)
     with LOCK:
         prev = BOTS.get(name, {})
