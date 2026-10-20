@@ -256,6 +256,17 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
             return fields;
 
         fields.Add(new { name = "Character", value = GetBotName(), inline = true });
+
+        // Include location and script state so the relay can populate the dashboard's existing fields.
+        string mapName = bot.Map?.FullName ?? string.Empty;
+        fields.Add(new { name = "Map", value = string.IsNullOrWhiteSpace(mapName) ? "Unknown" : mapName, inline = true });
+        fields.Add(new { name = "Room", value = bot.Map != null ? $"{bot.Player.Cell}-{bot.Player.Pad} (Room {bot.Map.RoomID})" : "Unknown", inline = true });
+
+        string scriptName = string.IsNullOrWhiteSpace(bot.Manager?.LoadedScript)
+            ? "None"
+            : System.IO.Path.GetFileNameWithoutExtension(bot.Manager.LoadedScript);
+        fields.Add(new { name = "Script", value = scriptName, inline = true });
+
         fields.Add(new { name = "Level", value = bot.Player.Level.ToString(), inline = true });
         fields.Add(new { name = "Gold", value = bot.Player.Gold.ToString("N0"), inline = true });
         fields.Add(new { name = "AC", value = bot.Player.Coins.ToString("N0"), inline = true });
@@ -282,6 +293,9 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
             quests = quests[..1000];
 
         fields.Add(new { name = "Equipment", value = equipment, inline = false });
+
+        // Report the actual item count; the public inventory interface does not expose total bag slots.
+        fields.Add(new { name = "Inventory", value = $"{bot.Inventory.Items.Count} items", inline = true });
         fields.Add(new { name = "Quest", value = quests, inline = false });
         return fields;
     }
