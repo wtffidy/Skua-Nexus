@@ -16,6 +16,7 @@ from urllib.request import urlopen
 HERE = Path(__file__).resolve().parent
 URL = "http://localhost:8787/"
 RELAY = HERE / "relay.py"
+ICON = HERE / "SkuaIcon.ico"
 
 BG = "#0d0e12"
 CARD = "#14161c"
@@ -33,6 +34,11 @@ class DashboardApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Skua Manager")
+        if ICON.is_file():
+            try:
+                self.iconbitmap(default=str(ICON))
+            except tk.TclError:
+                pass
         self.geometry("700x590")
         self.minsize(620, 520)
         self.configure(bg=BG)
