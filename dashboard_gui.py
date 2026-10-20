@@ -18,7 +18,7 @@ FROZEN = bool(getattr(sys, "frozen", False))
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 APP_DATA = Path(os.environ.get("APPDATA", str(Path.home()))) / "SkuaDashboard"
 RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", HERE)) if FROZEN else HERE
-URL = "http://localhost:8787/"
+URL = "http://127.0.0.1:8787/"
 RELAY = HERE / ("SkuaRelay.exe" if FROZEN else "relay.py")
 ICON = RESOURCE_DIR / "SkuaIcon.ico"
 
