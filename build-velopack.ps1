@@ -126,6 +126,7 @@ Copy-Item (Join-Path $DistRoot "SkuaManager\SkuaManager.exe") $PackageDir
 Copy-Item (Join-Path $DistRoot "SkuaManager\manager_internal") $PackageDir -Recurse
 Copy-Item (Join-Path $DistRoot "SkuaRelay\SkuaRelay.exe") $PackageDir
 Copy-Item (Join-Path $DistRoot "SkuaRelay\relay_internal") $PackageDir -Recurse
+Copy-Item (Join-Path $Root "version.txt") $PackageDir
 
 # Remove previous installers and release metadata so rebuilding the same version does not collide with old output.
 if (Test-Path $ReleasesDir) {
