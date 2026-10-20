@@ -116,7 +116,27 @@ function render() {
   }
 }
 
-let pollInFlight = false;
+let pollInFlight = false, ws = null, wsReconnect = null, wsConnected = false;
+function connectLive() {
+  if (location.protocol !== "http:" || !/^https?:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$/i.test(url)) return;
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  try {
+    const wsUrl = url.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:") + "/ws";
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => { wsConnected = true; $("#sum").textContent = "Live connection connected"; };
+    ws.onmessage = event => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type !== "snapshot" || !Array.isArray(message.bots)) return;
+        bots = message.bots.filter(b => b && typeof b.name === "string").sort((a, b) => a.name.localeCompare(b.name));
+        usage = message.usage ?? null;
+        render();
+      } catch { /* Ignore malformed WebSocket messages. */ }
+    };
+    ws.onclose = () => { wsConnected = false; ws = null; clearTimeout(wsReconnect); wsReconnect = setTimeout(connectLive, 2000); };
+    ws.onerror = () => { try { ws.close(); } catch { /* Ignore a close race. */ } };
+  } catch { wsConnected = false; }
+}
 async function poll() {
   if (!url || pollInFlight) return;
   pollInFlight = true;
@@ -132,6 +152,7 @@ async function poll() {
       usage = usageResponse.ok ? await usageResponse.json() : null;
     } catch { usage = null; }
     render();
+    connectLive();
   } catch { $("#sum").textContent = "Relay unreachable or returned invalid data - is relay.py running?"; }
   finally { pollInFlight = false; }
 }
@@ -211,5 +232,7 @@ $("#stream").onchange = e => { document.body.classList.toggle("blur", e.target.c
 $("#cfg").onclick = () => { $("#url").value = url; $("#rkin").value = rk; $("#dlg").showModal(); };
 $("#save").onclick = () => { url = $("#url").value.trim().replace(/\/$/, ""); rk = $("#rkin").value.trim(); localStorage.setItem("relay", url); localStorage.setItem("rk", rk); $("#dlg").close(); poll(); };
 
-setInterval(poll, 3000); poll();
+poll();
+// Keep a slow HTTP fallback for relays that do not support WebSockets (for example, a remote Worker).
+setInterval(() => { if (!wsConnected) poll(); }, 5000);
 </script></body></html>
