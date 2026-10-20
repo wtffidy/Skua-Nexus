@@ -1,4 +1,4 @@
-# Skua Dashboard (Windows)
+# Skua Nexus
 
 A browser dashboard and local relay for Skua/VibeSkua.
 
@@ -134,7 +134,7 @@ The Skua Nexus Manager has an **Appearance** control for selecting a custom back
 5. Choose **TCP**, enter `8787` for **Specific local ports**, and click **Next**.
 6. Choose **Allow the connection** → **Next**.
 7. Check **Private** only. Leave **Public** and **Domain** unchecked → **Next**.
-8. Name the rule `Skua Dashboard - Port 8787` and click **Finish**.
+8. Name the rule `Skua Nexus - Port 8787` and click **Finish**.
 
 If possible, scope the rule's **Scope** tab to your local subnet as an additional restriction. If an existing broad Python firewall rule is already enabled, review it too; a narrower rule does not necessarily override a broader allow rule. Only allow access on a trusted private network. Do not create router port forwarding for port 8787.
 
