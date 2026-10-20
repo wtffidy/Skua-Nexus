@@ -136,7 +136,7 @@ def record(body: dict) -> dict:
         description = str(current_embed.get("description") or "")
         # Accept common "Quest: ..." / "Equipment: ..." lines in descriptions too.
         for line in description.splitlines():
-            match = re.match(r"\s*\**([^:*]{1,40})\**\s*:\s*(.+?)\s*\**$", line)
+            match = re.match(r"\s*\*{0,2}([^:*]{1,40})\*{0,2}\s*:\s*(.+?)\s*\*{0,2}$", line)
             if not match:
                 continue
             label, value = match.group(1).strip(), match.group(2).strip()
