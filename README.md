@@ -30,6 +30,13 @@ The VibeSkua source repository is read-only for this dashboard project, so this 
 The relay now treats every received webhook as a fresh online heartbeat while tracking `stateUpdated` separately, and it preserves prior state when a ping contains no state snapshot.
 
 
+
+## Live updates with WebSockets
+
+When the dashboard is opened from the local relay at `http://localhost:8787/`, it connects to `/ws` and receives pushed snapshots when bot webhook data changes. Process usage is refreshed every two seconds while a browser is connected. The browser automatically reconnects if the connection drops. HTTP polling remains as a fallback when WebSockets are unavailable, including remote relay setups that do not expose the `/ws` endpoint.
+
+WebSockets only make relay-to-browser updates immediate; the client still has to send telemetry to the relay first.
+
 ## VibeSkua process usage (Windows)
 
 The local relay exposes `/usage` and the dashboard header displays the detected VibeSkua process's CPU usage, working-set RAM, process uptime, and the number of online dashboard tabs. CPU is sampled from Windows process times and may take two polls to appear. RAM is the total working set for matching VibeSkua/Skua processes.
