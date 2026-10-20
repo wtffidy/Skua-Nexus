@@ -216,10 +216,13 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
     private void StartPingTimer()
     {
         var settings = _settingsService.GetClient();
-        if (settings == null || settings.WebhookPingInterval <= 0) return;
-        
+        if (settings == null) return;
+
+        // Keep dashboard counters live even when optional webhook pings are disabled.
+        // Respect a configured interval; otherwise refresh dashboard snapshots every minute.
+        int intervalMinutes = settings.WebhookPingInterval > 0 ? settings.WebhookPingInterval : 1;
         _pingTimer?.Dispose();
-        var intervalMs = (int)TimeSpan.FromMinutes(settings.WebhookPingInterval).TotalMilliseconds;
+        int intervalMs = (int)TimeSpan.FromMinutes(intervalMinutes).TotalMilliseconds;
         _pingTimer = new System.Threading.Timer(OnPingTimerElapsed, null, intervalMs, intervalMs);
     }
 
@@ -231,7 +234,7 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
     private void OnPingTimerElapsed(object? state)
     {
         var settings = _settingsService.GetClient();
-        if (settings == null || settings.WebhookPingInterval <= 0)
+        if (settings == null)
         {
             StopPingTimer();
             return;
@@ -297,6 +300,14 @@ public class DiscordWebhookService : IDiscordWebhookService, IDisposable
         // Report the actual item count; the public inventory interface does not expose total bag slots.
         fields.Add(new { name = "Inventory", value = $"{bot.Inventory.Items.Count} items", inline = true });
         fields.Add(new { name = "Quest", value = quests, inline = false });
+
+        // These are the live counters displayed in Combat > Stats in Skua.
+        // Dashboard "Quests" represents quests completed and turned in.
+        fields.Add(new { name = "Kills", value = bot.Stats.Kills.ToString(), inline = true });
+        fields.Add(new { name = "Drops", value = bot.Stats.Drops.ToString(), inline = true });
+        fields.Add(new { name = "Quests", value = bot.Stats.QuestsCompleted.ToString(), inline = true });
+        fields.Add(new { name = "Deaths", value = bot.Stats.Deaths.ToString(), inline = true });
+        fields.Add(new { name = "Relogins", value = bot.Stats.Relogins.ToString(), inline = true });
         return fields;
     }
 
