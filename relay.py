@@ -119,7 +119,8 @@ def extract_stats(body: dict[str, Any], embed: dict[str, Any]) -> tuple[dict[str
 def record(body: dict[str, Any]) -> dict[str, Any]:
     """Store bot state and return the webhook body for optional Discord forwarding."""
     RAW.append(dict(body))
-    stats: dict[str, Any] = body.get("stats") if isinstance(body.get("stats"), dict) else {}
+    raw_stats = body.get("stats")
+    stats: dict[str, Any] = raw_stats if isinstance(raw_stats, dict) else {}
     embeds = [e for e in (body.get("embeds") or []) if isinstance(e, dict)] or [{}]
     embed = embeds[0]
     desc = "\n".join(str(e.get("description") or "") for e in embeds)
