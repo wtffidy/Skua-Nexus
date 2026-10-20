@@ -63,6 +63,7 @@ const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;
 const sec = (title, val, rows, privateBody = false) => `<details open><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body ${privateBody ? "priv" : ""}">${rows || "<div>No data</div>"}</div></details>`;
 const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
 const detailRows = value => rows(String(value ?? "").split(/\r?\n/).filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
+const logHtml = (message, name) => { const safe = esc(message); const safeName = esc(name); return safeName ? safe.replaceAll(safeName, `<span class="priv">${safeName}</span>`) : safe; };
 
 function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
@@ -76,7 +77,7 @@ function card(b, i) {
   <div style="margin-top:14px">${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}</div>
   ${t ? `<div class="tgt"><div class="t"><span>Target <b>${esc(t.name)}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}<span class="chip">${esc(t.name)}</span></div>` : ""}
   ${sec("Quest", b.quest ?? "-", detailRows(b.quest))}${sec("Equipment", b.weapon ?? "-", detailRows(b.weapon))}
-  ${sec("Character", "", rows(b.fields), true)}${sec("Log", "", b.last ? `<div>${esc(b.last)}</div>` : "")}
+  ${sec("Character", "", rows(b.fields), true)}${sec("Log", "", b.last ? `<div>${logHtml(b.last, b.name)}</div>` : "")}
   <div class="stats">${[["kills","Kills"],["drops","Drops"],["quests","Quests"],["deaths","Deaths"],["relogins","Relogins"]].map(([k, l]) => `<div><b>${fmt(b[k])}</b><small>${l}</small></div>`).join("")}</div>
   ${b.skuaMem || b.gameMem ? `<div class="ft">Skua ${esc(b.skuaMem ?? "-")} &nbsp; Game ${esc(b.gameMem ?? "-")}</div>` : ""}</div>`;
 }
