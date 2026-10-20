@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Small Windows GUI for starting and maintaining the Skua Dashboard."""
+"""Dark, site-matched Windows companion for the Skua Dashboard."""
 from __future__ import annotations
 
 import queue
@@ -9,7 +9,7 @@ import threading
 import tkinter as tk
 import webbrowser
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import messagebox
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -17,84 +17,154 @@ HERE = Path(__file__).resolve().parent
 URL = "http://localhost:8787/"
 RELAY = HERE / "relay.py"
 
+BG = "#0d0e12"
+CARD = "#14161c"
+INNER = "#1b1e26"
+LINE = "#262a35"
+FG = "#e8eaf0"
+MUTED = "#8b93a5"
+ACCENT = "#7c6cff"
+GREEN = "#22c55e"
+AMBER = "#e5a82a"
+RED = "#e05555"
+
 
 class DashboardApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("Skua Dashboard Companion")
-        self.geometry("560x430")
-        self.minsize(500, 380)
-        self.configure(bg="#0d0e12")
+        self.title("Skua Manager")
+        self.geometry("700x590")
+        self.minsize(620, 520)
+        self.configure(bg=BG)
         self.process: subprocess.Popen | None = None
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
+        self.busy = False
 
-        style = ttk.Style(self)
-        style.theme_use("clam")
-        style.configure("TFrame", background="#0d0e12")
-        style.configure("TLabel", background="#0d0e12", foreground="#e8eaf0", font=("Segoe UI", 10))
-        style.configure("Title.TLabel", font=("Segoe UI", 17, "bold"))
-        style.configure("Sub.TLabel", foreground="#8b93a5")
-        style.configure("TButton", font=("Segoe UI", 10), padding=(10, 8))
-        style.configure("Accent.TButton", background="#7c6cff", foreground="#ffffff")
-        style.map("Accent.TButton", background=[("active", "#9588ff")])
-
-        root = ttk.Frame(self, padding=18)
-        root.pack(fill="both", expand=True)
-        ttk.Label(root, text="Skua Dashboard", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(root, text="Quick controls for your local dashboard and Git updates.", style="Sub.TLabel").pack(anchor="w", pady=(2, 14))
-
-        status_row = ttk.Frame(root)
-        status_row.pack(fill="x", pady=(0, 12))
-        self.status_dot = tk.Label(status_row, text="●", fg="#e5a82a", bg="#0d0e12", font=("Segoe UI", 12))
-        self.status_dot.pack(side="left")
-        self.status = ttk.Label(status_row, text="Checking local relay…")
-        self.status.pack(side="left", padx=(7, 0))
-        self.url_label = ttk.Label(status_row, text=URL, style="Sub.TLabel")
-        self.url_label.pack(side="right")
-
-        actions = ttk.Frame(root)
-        actions.pack(fill="x")
-        for column in range(2):
-            actions.columnconfigure(column, weight=1)
-        ttk.Button(actions, text="Open / Reload Dashboard", style="Accent.TButton", command=self.open_dashboard).grid(row=0, column=0, sticky="ew", padx=(0, 6), pady=5)
-        ttk.Button(actions, text="Restart Relay", command=self.restart_relay).grid(row=0, column=1, sticky="ew", padx=(6, 0), pady=5)
-        ttk.Button(actions, text="Fetch Latest Git Updates", command=self.pull_updates).grid(row=1, column=0, sticky="ew", padx=(0, 6), pady=5)
-        ttk.Button(actions, text="Open Repository Folder", command=self.open_folder).grid(row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
-
-        ttk.Label(root, text="Activity", style="Sub.TLabel").pack(anchor="w", pady=(14, 5))
-        self.log = tk.Text(root, height=10, bg="#14161c", fg="#e8eaf0", insertbackground="#e8eaf0",
-                           relief="flat", wrap="word", font=("Consolas", 9), state="disabled")
-        self.log.pack(fill="both", expand=True)
+        self._build_ui()
         self.log_message("Ready. Git updates use a safe fast-forward-only pull.")
         self.after(250, self.drain_messages)
-        self.after(1000, self.check_status)
+        self.after(500, self.check_status)
         self.protocol("WM_DELETE_WINDOW", self.close)
+
+    def _build_ui(self) -> None:
+        header = tk.Frame(self, bg=BG)
+        header.pack(fill="x", padx=22, pady=(20, 14))
+
+        logo = tk.Label(header, text="V", bg=ACCENT, fg="#ffffff",
+                        font=("Segoe UI", 12, "bold"), width=2, height=1)
+        logo.pack(side="left", padx=(0, 10))
+        title_area = tk.Frame(header, bg=BG)
+        title_area.pack(side="left", fill="x", expand=True)
+        tk.Label(title_area, text="Skua Manager", bg=BG, fg=FG,
+                 font=("Segoe UI", 16, "bold")).pack(anchor="w")
+        tk.Label(title_area, text="LOCAL DASHBOARD CONTROL", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", pady=(1, 0))
+        tk.Label(header, text="●", bg=BG, fg=GREEN, font=("Segoe UI", 12)).pack(side="right", padx=(8, 0))
+        tk.Label(header, text="LOCAL", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9, "bold")).pack(side="right")
+
+        self._separator()
+
+        status_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
+        status_card.pack(fill="x", padx=22, pady=(16, 12))
+        status_inner = tk.Frame(status_card, bg=CARD)
+        status_inner.pack(fill="x", padx=15, pady=13)
+        self.status_dot = tk.Label(status_inner, text="●", bg=CARD, fg=AMBER, font=("Segoe UI", 13))
+        self.status_dot.pack(side="left", padx=(0, 9))
+        status_text = tk.Frame(status_inner, bg=CARD)
+        status_text.pack(side="left", fill="x", expand=True)
+        tk.Label(status_text, text="Relay status", bg=CARD, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(anchor="w")
+        self.status = tk.Label(status_text, text="Checking local relay…", bg=CARD, fg=FG,
+                               font=("Segoe UI", 11, "bold"))
+        self.status.pack(anchor="w", pady=(2, 0))
+        tk.Label(status_inner, text=URL, bg=CARD, fg=MUTED,
+                 font=("Consolas", 9)).pack(side="right")
+
+        tk.Label(self, text="QUICK ACTIONS", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w", padx=24, pady=(8, 7))
+        actions = tk.Frame(self, bg=BG)
+        actions.pack(fill="x", padx=22)
+        actions.columnconfigure(0, weight=1)
+        actions.columnconfigure(1, weight=1)
+        self._button(actions, "Open / Reload Dashboard", self.open_dashboard, primary=True).grid(
+            row=0, column=0, sticky="ew", padx=(0, 6), pady=5)
+        self._button(actions, "Restart Relay", self.restart_relay).grid(
+            row=0, column=1, sticky="ew", padx=(6, 0), pady=5)
+        self._button(actions, "Fetch Latest Git Updates", self.pull_updates, primary=True).grid(
+            row=1, column=0, sticky="ew", padx=(0, 6), pady=5)
+        self._button(actions, "Open Repository Folder", self.open_folder).grid(
+            row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
+
+        log_header = tk.Frame(self, bg=BG)
+        log_header.pack(fill="x", padx=24, pady=(16, 7))
+        tk.Label(log_header, text="ACTIVITY", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9, "bold")).pack(side="left")
+        tk.Label(log_header, text="Updates and relay messages", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(side="right")
+
+        log_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
+        log_card.pack(fill="both", expand=True, padx=22, pady=(0, 20))
+        self.log = tk.Text(log_card, height=9, bg=CARD, fg=FG, insertbackground=FG,
+                           selectbackground=ACCENT, relief="flat", wrap="word",
+                           font=("Consolas", 9), padx=12, pady=11, state="disabled",
+                           borderwidth=0)
+        self.log.pack(fill="both", expand=True)
+        self.log.tag_configure("ok", foreground=GREEN)
+        self.log.tag_configure("error", foreground=RED)
+
+    def _separator(self) -> None:
+        tk.Frame(self, bg=LINE, height=1).pack(fill="x")
+
+    def _button(self, parent: tk.Widget, text: str, command, primary: bool = False) -> tk.Button:
+        background = ACCENT if primary else INNER
+        active = "#9588ff" if primary else "#292d38"
+        button = tk.Button(
+            parent, text=text, command=command, bg=background, fg="#ffffff" if primary else FG,
+            activebackground=active, activeforeground="#ffffff", relief="flat",
+            highlightthickness=1, highlightbackground=ACCENT if primary else LINE,
+            highlightcolor=ACCENT, bd=0, padx=12, pady=11,
+            font=("Segoe UI", 10, "bold" if primary else "normal"), cursor="hand2"
+        )
+        return button
 
     def log_message(self, message: str) -> None:
         self.log.configure(state="normal")
-        self.log.insert("end", message.rstrip() + "\n")
+        tag = "error" if "failed" in message.lower() or "error" in message.lower() else (
+            "ok" if "online" in message.lower() or "started" in message.lower() else "")
+        self.log.insert("end", message.rstrip() + "\n", tag)
         self.log.see("end")
         self.log.configure(state="disabled")
 
     def worker(self, title: str, action) -> None:
+        if self.busy:
+            self.log_message("Please wait for the current operation to finish.")
+            return
+        self.busy = True
+
         def run() -> None:
             try:
                 result = action()
                 self.messages.put(("log", f"{title}: {result}"))
             except Exception as exc:
                 self.messages.put(("error", f"{title} failed: {exc}"))
+            finally:
+                self.messages.put(("busy", ""))
         threading.Thread(target=run, daemon=True).start()
 
     def drain_messages(self) -> None:
         try:
             while True:
                 kind, message = self.messages.get_nowait()
-                self.log_message(message)
-                if kind == "error":
-                    self.status.configure(text=message)
+                if kind == "busy":
+                    self.busy = False
                 elif kind == "restart_after_update":
                     self.stop_relay()
                     self.start_relay()
+                else:
+                    self.log_message(message)
+                    if kind == "error":
+                        self.status.configure(text="Action failed", fg=RED)
         except queue.Empty:
             pass
         self.after(250, self.drain_messages)
@@ -108,8 +178,8 @@ class DashboardApp(tk.Tk):
 
     def check_status(self) -> None:
         alive = self.relay_responds()
-        self.status_dot.configure(fg="#22c55e" if alive else "#e5a82a")
-        self.status.configure(text="Relay online" if alive else "Relay not responding")
+        self.status_dot.configure(fg=GREEN if alive else AMBER)
+        self.status.configure(text="Relay online" if alive else "Relay not responding", fg=GREEN if alive else AMBER)
         self.after(5000, self.check_status)
 
     def open_dashboard(self) -> None:
@@ -127,10 +197,9 @@ class DashboardApp(tk.Tk):
         if not RELAY.exists():
             messagebox.showerror("Missing file", f"Could not find relay.py at:\n{RELAY}")
             return
-        executable = sys.executable
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         try:
-            self.process = subprocess.Popen([executable, str(RELAY)], cwd=HERE, creationflags=flags)
+            self.process = subprocess.Popen([sys.executable, str(RELAY)], cwd=HERE, creationflags=flags)
             self.log_message("Started relay.py.")
         except OSError as exc:
             messagebox.showerror("Could not start relay", str(exc))
@@ -159,12 +228,8 @@ class DashboardApp(tk.Tk):
 
         def pull() -> str:
             result = subprocess.run(
-                ["git", "pull", "--ff-only"],
-                cwd=HERE,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                check=False,
+                ["git", "pull", "--ff-only"], cwd=HERE, capture_output=True,
+                text=True, timeout=120, check=False,
             )
             output = (result.stdout + result.stderr).strip()
             if result.returncode != 0:
