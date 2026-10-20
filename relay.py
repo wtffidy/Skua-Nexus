@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Local relay for the Skua dashboard. Standard library only."""
+import base64
+import hashlib
 import json
 import os
 import re
 import secrets
+import socket
+import struct
 import threading
 import time
 import urllib.request
@@ -31,6 +35,8 @@ RAW: deque[dict[str, Any]] = deque(maxlen=20)
 BOTS: dict[str, dict[str, Any]] = {}
 _PROCESS_SAMPLES: dict[int, tuple[int, int]] = {}
 _USAGE_LOCK = threading.Lock()
+WS_LOCK = threading.Lock()
+WS_CLIENTS: set[socket.socket] = set()
 if DATA_PATH.exists():
     try:
         loaded = json.loads(DATA_PATH.read_text())
@@ -352,6 +358,73 @@ def process_usage() -> dict[str, Any]:
         return {"available": False, "reason": f"Process metrics unavailable: {type(exc).__name__}"}
 
 
+def websocket_frame(payload: bytes, opcode: int = 1) -> bytes:
+    """Build an unmasked server-to-client WebSocket frame."""
+    length = len(payload)
+    head = bytes([0x80 | opcode])
+    if length < 126:
+        return head + bytes([length]) + payload
+    if length < 65536:
+        return head + bytes([126]) + struct.pack("!H", length) + payload
+    return head + bytes([127]) + struct.pack("!Q", length) + payload
+
+
+def broadcast_snapshot() -> None:
+    """Push the current dashboard state to every connected WebSocket browser."""
+    with LOCK:
+        bots = list(BOTS.values())
+    payload = json.dumps({"type": "snapshot", "bots": bots, "usage": process_usage()}, ensure_ascii=False).encode("utf-8")
+    frame = websocket_frame(payload)
+    dead: list[socket.socket] = []
+    with WS_LOCK:
+        for client in WS_CLIENTS:
+            try:
+                client.sendall(frame)
+            except (OSError, ConnectionError):
+                dead.append(client)
+        for client in dead:
+            WS_CLIENTS.discard(client)
+            try:
+                client.close()
+            except OSError:
+                pass
+
+
+def usage_broadcast_loop() -> None:
+    """Refresh process telemetry for connected browsers even between bot heartbeats."""
+    while True:
+        time.sleep(2)
+        with WS_LOCK:
+            connected = bool(WS_CLIENTS)
+        if connected:
+            broadcast_snapshot()
+
+
+def read_websocket_frame(client: socket.socket) -> tuple[int, bytes] | None:
+    """Read one client WebSocket frame, including its required masking."""
+    def read_exact(count: int) -> bytes:
+        data = bytearray()
+        while len(data) < count:
+            chunk = client.recv(count - len(data))
+            if not chunk:
+                raise ConnectionError("WebSocket client disconnected")
+            data.extend(chunk)
+        return bytes(data)
+
+    first, second = read_exact(2)
+    opcode, length = first & 0x0F, second & 0x7F
+    if length == 126:
+        length = struct.unpack("!H", read_exact(2))[0]
+    elif length == 127:
+        length = struct.unpack("!Q", read_exact(8))[0]
+    masked = bool(second & 0x80)
+    mask = read_exact(4) if masked else b""
+    payload = read_exact(length) if length else b""
+    if masked:
+        payload = bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+    return opcode, payload
+
+
 def forward(body: dict[str, Any]) -> None:
     url = CFG["discord_webhook"]
     if not url:
@@ -400,6 +473,52 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, list(BOTS.values()))
         elif path == "/usage":
             self._send(200, process_usage())
+        elif path == "/ws":
+            key = (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
+            if CFG["allowed_origins"] and self.headers.get("Origin", "") not in CFG["allowed_origins"] and not self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1")):
+                return self._send(403, b"origin not allowed")
+            if CFG["push_key"] and not secrets.compare_digest(key, CFG["push_key"]):
+                return self._send(401, b"no")
+            ws_key = self.headers.get("Sec-WebSocket-Key")
+            if self.headers.get("Upgrade", "").lower() != "websocket" or not ws_key:
+                return self._send(400, b"websocket upgrade required")
+            accept = base64.b64encode(hashlib.sha1((ws_key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
+            self.send_response(101, "Switching Protocols")
+            self.send_header("Upgrade", "websocket")
+            self.send_header("Connection", "Upgrade")
+            self.send_header("Sec-WebSocket-Accept", accept)
+            self.end_headers()
+            client = self.connection
+            client.settimeout(45)
+            with WS_LOCK:
+                WS_CLIENTS.add(client)
+            try:
+                with LOCK:
+                    initial_bots = list(BOTS.values())
+                initial = json.dumps({"type": "snapshot", "bots": initial_bots, "usage": process_usage()}, ensure_ascii=False).encode("utf-8")
+                client.sendall(websocket_frame(initial))
+                while True:
+                    frame = read_websocket_frame(client)
+                    if frame is None:
+                        break
+                    opcode, payload = frame
+                    if opcode == 8:
+                        try:
+                            client.sendall(websocket_frame(payload, 8))
+                        except OSError:
+                            pass
+                        break
+                    if opcode == 9:
+                        client.sendall(websocket_frame(payload, 10))
+            except (OSError, ConnectionError, socket.timeout):
+                pass
+            finally:
+                with WS_LOCK:
+                    WS_CLIENTS.discard(client)
+                try:
+                    client.close()
+                except OSError:
+                    pass
         elif path == "/raw":
             with LOCK:
                 self._send(200, list(RAW))
@@ -414,6 +533,8 @@ class Handler(BaseHTTPRequestHandler):
             found = BOTS.pop(parts[1], None) is not None
             DATA_PATH.write_text(json.dumps(BOTS, ensure_ascii=False))
         self._send(200 if found else 404, b"ok" if found else b"no such bot")
+        if found:
+            threading.Thread(target=broadcast_snapshot, daemon=True).start()
 
     def do_POST(self):
         u = urlparse(self.path)
@@ -430,6 +551,7 @@ class Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             return self._send(400, b"expected JSON object")
         forwarded = record(body)
+        threading.Thread(target=broadcast_snapshot, daemon=True).start()
         threading.Thread(target=forward, args=(forwarded,), daemon=True).start()
         self._send(204)
 
@@ -438,6 +560,7 @@ if __name__ == "__main__":
     print(f"Skua relay running. Dashboard: http://localhost:{port}/\nPut this in the client's Discord Webhook URL field:\n  http://localhost:{port}/api/webhooks/1/{CFG['push_key']}")
     if not CFG["discord_webhook"]:
         print("(No Discord webhook set in config.json, so nothing is forwarded to Discord.)")
+    threading.Thread(target=usage_broadcast_loop, daemon=True).start()
     try:
         ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
     except OSError as ex:
