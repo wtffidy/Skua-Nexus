@@ -2,6 +2,7 @@
 """Local relay for the Skua dashboard. Standard library only."""
 import base64
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -19,12 +20,13 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 CFG_PATH, DATA_PATH = HERE / "config.json", HERE / "bots.json"
-DEFAULTS = {"port": 8787, "push_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
+DEFAULTS = {"host": "0.0.0.0", "port": 8787, "push_key": "", "read_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
 
 
 def load_config() -> dict[str, Any]:
     cfg = {**DEFAULTS, **(json.loads(CFG_PATH.read_text()) if CFG_PATH.exists() else {})}
     cfg["push_key"] = cfg["push_key"] or secrets.token_hex(12)
+    cfg["read_key"] = cfg["read_key"] or secrets.token_urlsafe(24)
     CFG_PATH.write_text(json.dumps(cfg, indent=2))
     return cfg
 
@@ -450,6 +452,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")
 
+    def _is_local_client(self) -> bool:
+        try:
+            return ipaddress.ip_address(self.client_address[0].split("%")[0]).is_loopback
+        except ValueError:
+            return False
+
+    def _authorized(self) -> bool:
+        if self._is_local_client():
+            return True
+        supplied = self.headers.get("Authorization", "")
+        if supplied.lower().startswith("bearer "):
+            supplied = supplied[7:].strip()
+        else:
+            supplied = (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
+        return bool(CFG["read_key"]) and secrets.compare_digest(supplied, CFG["read_key"])
+
     def _send(self, code: int, body: Any = b"", ctype: str = "application/json") -> None:
         data: bytes = json.dumps(body).encode() if isinstance(body, (dict, list)) else body if isinstance(body, bytes) else str(body).encode()
         self.send_response(code)
@@ -468,6 +486,8 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             page = HERE / "index.html"
             self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
+        elif path in ("/bots", "/usage", "/raw") and not self._authorized():
+            self._send(401, {"error": "unauthorized; enter the relay read_key in dashboard Settings"})
         elif path == "/bots":
             with LOCK:
                 self._send(200, list(BOTS.values()))
@@ -477,8 +497,13 @@ class Handler(BaseHTTPRequestHandler):
             key = (parse_qs(urlparse(self.path).query).get("key") or [""])[0]
             if CFG["allowed_origins"] and self.headers.get("Origin", "") not in CFG["allowed_origins"] and not self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1")):
                 return self._send(403, b"origin not allowed")
-            local_origin = self.headers.get("Origin", "").startswith(("http://localhost", "http://127.0.0.1"))
-            if not local_origin and CFG["push_key"] and not secrets.compare_digest(key, CFG["push_key"]):
+            origin = self.headers.get("Origin", "")
+            request_host = self.headers.get("Host", "")
+            parsed_origin = urlparse(origin)
+            same_origin = bool(origin and parsed_origin.netloc.lower() == request_host.lower())
+            if not same_origin and origin not in CFG["allowed_origins"]:
+                return self._send(403, b"origin not allowed")
+            if not self._is_local_client() and (not CFG["read_key"] or not secrets.compare_digest(key, CFG["read_key"])):
                 return self._send(401, b"no")
             ws_key = self.headers.get("Sec-WebSocket-Key")
             if self.headers.get("Upgrade", "").lower() != "websocket" or not ws_key:
@@ -527,6 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, b"not found")
 
     def do_DELETE(self):
+        if not self._authorized():
+            return self._send(401, {"error": "unauthorized"})
         parts = [unquote(p) for p in urlparse(self.path).path.split("/") if p]
         if len(parts) != 2 or parts[0] != "bots":
             return self._send(404, b"not found")
@@ -563,6 +590,7 @@ if __name__ == "__main__":
         print("(No Discord webhook set in config.json, so nothing is forwarded to Discord.)")
     threading.Thread(target=usage_broadcast_loop, daemon=True).start()
     try:
-        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
+        host = str(CFG.get("host") or "127.0.0.1")
+        ThreadingHTTPServer((host, port), Handler).serve_forever()
     except OSError as ex:
         print(f"Could not start on port {port}: {ex}")
