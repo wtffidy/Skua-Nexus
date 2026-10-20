@@ -24,11 +24,15 @@ RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", HERE)) if getattr(sys, "frozen", Fa
 APP_DATA = Path(os.environ.get("APPDATA", str(Path.home()))) / "SkuaDashboard"
 APP_DATA.mkdir(parents=True, exist_ok=True)
 CFG_PATH, DATA_PATH = APP_DATA / "config.json", APP_DATA / "bots.json"
-DEFAULTS = {"host": "0.0.0.0", "port": 8787, "push_key": "", "read_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
+DEFAULTS = {"host": "127.0.0.1", "port": 8787, "push_key": "", "read_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
 
 
 def load_config() -> dict[str, Any]:
     cfg = {**DEFAULTS, **(json.loads(CFG_PATH.read_text()) if CFG_PATH.exists() else {})}
+    # The manager connects through loopback. Only loopback or the all-interfaces address
+    # is supported so a stale LAN-IP/IPv6-only setting cannot break local startup.
+    if str(cfg.get("host") or "").strip() not in {"127.0.0.1", "0.0.0.0"}:
+        cfg["host"] = DEFAULTS["host"]
     cfg["push_key"] = cfg["push_key"] or secrets.token_hex(12)
     cfg["read_key"] = cfg["read_key"] or secrets.token_urlsafe(24)
     CFG_PATH.write_text(json.dumps(cfg, indent=2))
@@ -587,7 +591,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = CFG["port"]
-    print(f"Skua relay running. Dashboard: http://localhost:{port}/\nPut this in the client's Discord Webhook URL field:\n  http://localhost:{port}/api/webhooks/1/{CFG['push_key']}")
+    print(f"Skua relay running. Dashboard: http://127.0.0.1:{port}/\nPut this in the client's Discord Webhook URL field:\n  http://127.0.0.1:{port}/api/webhooks/1/{CFG['push_key']}")
     if not CFG["discord_webhook"]:
         print("(No Discord webhook set in config.json, so nothing is forwarded to Discord.)")
     threading.Thread(target=usage_broadcast_loop, daemon=True).start()
