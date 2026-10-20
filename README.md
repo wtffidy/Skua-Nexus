@@ -2,13 +2,9 @@
 
 A browser dashboard and local Python relay for Skua/VibeSkua.
 
-## Start
+## Start (Windows)
 
-Run `start.bat` on Windows. The dashboard is served at `http://localhost:8787`.
-
-## Desktop companion GUI (Windows)
-
-Run `start-gui.bat` to open a small desktop control window outside the browser. It uses Python's built-in Tkinter and does not need extra Python packages.
+Run `start-gui.bat` to launch the desktop companion. It automatically starts the local relay if it is not already running; use **Open / Reload Dashboard** to open `http://localhost:8787` in your browser. The GUI uses Python's built-in Tkinter and does not need extra Python packages. The old standalone `start.bat` launcher has been removed so the GUI is the normal entry point.
 
 - **Open / Reload Dashboard** opens the local dashboard in your default browser.
 - **Restart Relay** restarts the local Python relay.
