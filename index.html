@@ -73,7 +73,7 @@ function card(b, i) {
   <span class="pill ${stale || /stop|crash/i.test(b.status ?? "") ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
   <div class="kv"><span>Map</span><span>${esc(b.map ?? "-")}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
   <span>Level</span><span>${esc(b.level ?? "-")}${b.class ? " - " + esc(b.class) : ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
-  <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv ? `${b.inv.used}/${b.inv.total}` : "-"}</span>
+  <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv ? `${b.inv.used}/${b.inv.total}` : b.invCount != null ? `${fmt(b.invCount)} items` : "-"}</span>
   <span>Script</span><span>${esc(b.script ?? "-")}</span></div>
   <div style="margin-top:14px">${bar(b.hp?.cur, b.hp?.max, "var(--hp)", "HP")}${bar(b.mp?.cur, b.mp?.max, "var(--mp)", "MP")}</div>
   ${t ? `<div class="tgt"><div class="t"><span>Target <b>${esc(t.name)}</b></span><span>${pct(t.hp, t.max).toFixed(0)}%</span></div>${bar(t.hp, t.max, "var(--tg)", "")}<span class="chip">${esc(t.name)}</span></div>` : ""}
@@ -87,7 +87,7 @@ function card(b, i) {
 const ago = ms => { const s = Math.round((Date.now() - ms) / 1000); return s < 90 ? `${s}s ago` : s < 5400 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`; };
 const TABS = {
   scripts: [["Bot", b => esc(b.name)], ["Script", b => esc(b.script ?? "-")], ["Status", b => esc(Date.now() - b.updated > STALE ? "Offline" : b.status ?? "Running")], ["Last seen", b => ago(b.updated)]],
-  accounts: [["Bot", b => esc(b.name)], ["Level", b => esc(b.level ?? "-")], ["Class", b => esc(b.class ?? "-")], ["Gold", b => `<span class="priv">${fmt(b.gold)}</span>`], ["Inventory", b => b.inv ? `${b.inv.used}/${b.inv.total}` : "-"]],
+  accounts: [["Bot", b => esc(b.name)], ["Level", b => esc(b.level ?? "-")], ["Class", b => esc(b.class ?? "-")], ["Gold", b => `<span class="priv">${fmt(b.gold)}</span>`], ["Inventory", b => b.inv ? `${b.inv.used}/${b.inv.total}` : b.invCount != null ? `${fmt(b.invCount)} items` : "-"]],
   resources: [["Bot", b => esc(b.name)], ["Kills", b => fmt(b.kills)], ["Drops", b => fmt(b.drops)], ["Quests", b => fmt(b.quests)], ["Deaths", b => fmt(b.deaths)], ["Relogins", b => fmt(b.relogins)], ["Skua", b => esc(b.skuaMem ?? "-")], ["Game", b => esc(b.gameMem ?? "-")]]
 };
 let tab = "bots";
