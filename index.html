@@ -65,13 +65,14 @@ const sec = (title, val, rows, privateBody = false) => `<details open><summary><
 const rows = f => (f ?? []).map(x => `<div>${esc(x.name)}<b>${esc(x.value)}</b></div>`).join("");
 const detailRows = value => rows(String(value ?? "").split(/\r?\n/).filter(Boolean).map((value, i) => ({ name: `#${i + 1}`, value })));
 const logHtml = (message, name) => { const safe = esc(message); const safeName = esc(name); return safeName ? safe.replaceAll(safeName, `<span class="priv">${safeName}</span>`) : safe; };
+const mapHtml = value => { const map = String(value ?? "-"); const match = map.match(/^(.*?)(-\d+)$/); return match ? `${esc(match[1])}<span class="priv">${esc(match[2])}</span>` : esc(map); };
 
 function card(b, i) {
   const stale = Date.now() - b.updated > STALE, t = b.target, on = picked.has(b.name);
   return `<div class="card ${stale ? "stale" : ""} ${on ? "sel" : ""}">
   <div class="hd"><input type="checkbox" data-n="${esc(b.name)}" ${on ? "checked" : ""}><span class="tab">Tab ${i + 1}</span><span class="priv">${esc(b.name)}</span><button class="x" data-del="${esc(b.name)}" title="Remove this bot">&#10005;</button></div>
   <span class="pill ${stale || /stop|crash/i.test(b.status ?? "") ? "off" : ""}">${stale ? "Offline" : esc(b.status ?? "Running")}</span>
-  <div class="kv"><span>Map</span><span>${esc(b.map ?? "-")}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
+  <div class="kv"><span>Map</span><span>${mapHtml(b.map)}</span><span>Room</span><span class="priv">${esc(b.room ?? "-")}</span>
   <span>Level</span><span>${esc(b.level ?? "-")}${b.class ? " - " + esc(b.class) : ""}</span><span>Gold</span><span class="priv">${fmt(b.gold)}</span>
   <span>AC</span><span>${fmt(b.ac)}</span><span>Inventory</span><span>${b.inv ? `${b.inv.used}/${b.inv.total}` : b.invCount != null ? `${fmt(b.invCount)} items` : "-"}</span>
   <span>Script</span><span>${esc(b.script ?? "-")}</span></div>
