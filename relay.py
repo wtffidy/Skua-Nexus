@@ -436,6 +436,12 @@ def read_websocket_frame(client: socket.socket) -> tuple[int, bytes] | None:
 
 
 def forward(body: dict[str, Any]) -> None:
+    # Dashboard health snapshots are telemetry, not Discord notifications.
+    # They still get recorded and broadcast to dashboard clients by do_POST.
+    embeds = body.get("embeds") or []
+    if any(isinstance(embed, dict) and str(embed.get("title") or "").strip().lower() == "health ping"
+           for embed in embeds):
+        return
     url = CFG["discord_webhook"]
     if not url:
         return
