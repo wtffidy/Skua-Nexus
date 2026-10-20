@@ -6,6 +6,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import tempfile
 import subprocess
 import sys
@@ -144,6 +145,18 @@ class DashboardApp(tk.Tk):
             row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
         self._button(actions, "Open Config", self.open_config).grid(
             row=2, column=0, sticky="ew", padx=(0, 6), pady=5)
+
+        remote_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
+        remote_card.pack(fill="x", padx=22, pady=(2, 10))
+        remote_inner = tk.Frame(remote_card, bg=CARD)
+        remote_inner.pack(fill="x", padx=14, pady=12)
+        remote_text = tk.Frame(remote_inner, bg=CARD)
+        remote_text.pack(side="left", fill="x", expand=True)
+        tk.Label(remote_text, text="PRIVATE REMOTE ACCESS  /  TAILSCALE", bg=CARD, fg=ACCENT,
+                 font=("Segoe UI", 9, "bold")).pack(anchor="w")
+        tk.Label(remote_text, text="Check Tailscale or enable a private HTTPS link for your phone.",
+                 bg=CARD, fg=MUTED, font=("Segoe UI", 8), wraplength=340, justify="left").pack(anchor="w", pady=(4, 0))
+        self._button(remote_inner, "Remote Access Setup", self.open_remote_access, primary=True).pack(side="right", padx=(10, 0))
 
         log_header = tk.Frame(self, bg=BG)
         log_header.pack(fill="x", padx=24, pady=(16, 7))
@@ -598,6 +611,64 @@ class DashboardApp(tk.Tk):
         except OSError as exc:
             self.status.configure(text="Update installation failed", fg=RED)
             messagebox.showerror("Could not launch installer", str(exc), parent=self)
+
+    def open_remote_access(self) -> None:
+        """Open the private Tailscale remote-access setup dialog."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Skua Nexus | Private Remote Access")
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("540x365")
+        tk.Label(dialog, text="PRIVATE REMOTE ACCESS", bg=BG, fg=ACCENT,
+                 font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(18, 6))
+        tk.Label(dialog,
+                 text="Tailscale lets you reach this dashboard from your phone without opening router ports. Install it on this PC and your phone, then sign both into the same Tailscale account.",
+                 bg=BG, fg=FG, font=("Segoe UI", 9), wraplength=495, justify="left").pack(anchor="w", padx=20, pady=(0, 12))
+        tk.Label(dialog, text="1. Install Tailscale on this PC and your phone.", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=3)
+        tk.Label(dialog, text="2. Sign both devices into the same tailnet.", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=3)
+        tk.Label(dialog, text="3. Enable Tailscale Serve to create a private HTTPS link.", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=3)
+        tk.Label(dialog, text="Use Serve, not Funnel. Never expose port 8787 with router port forwarding.",
+                 bg=CARD, fg=AMBER, font=("Segoe UI", 9, "bold"), wraplength=495, justify="left",
+                 padx=10, pady=9).pack(fill="x", padx=20, pady=(10, 10))
+        footer = tk.Frame(dialog, bg=BG)
+        footer.pack(fill="x", padx=20, pady=(0, 16))
+        self._button(footer, "Download Tailscale", lambda: webbrowser.open("https://tailscale.com/download/windows")).pack(side="left")
+        self._button(footer, "Check / Enable", lambda: self.enable_tailscale_serve(dialog), primary=True).pack(side="right")
+        self._button(footer, "Close", dialog.destroy).pack(side="right", padx=(0, 8))
+
+    def enable_tailscale_serve(self, dialog: tk.Toplevel | None = None) -> None:
+        """Check Tailscale and enable private HTTPS access to the local dashboard."""
+        executable = shutil.which("tailscale")
+        if executable is None:
+            messagebox.showwarning(
+                "Tailscale not found",
+                "Install Tailscale for Windows, sign in on this PC and your phone, then try again. "
+                "If it is installed but not found, restart Skua Nexus after installing it.",
+                parent=dialog or self,
+            )
+            webbrowser.open("https://tailscale.com/download/windows")
+            return
+
+        def enable() -> str:
+            status = subprocess.run([executable, "status"], capture_output=True, text=True, timeout=15, check=False)
+            if status.returncode != 0:
+                detail = (status.stdout + status.stderr).strip()
+                raise RuntimeError("Tailscale is installed but not connected. Open Tailscale, sign in, and try again. " + detail)
+            result = subprocess.run(
+                [executable, "serve", "--bg", "8787"],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            output = (result.stdout + result.stderr).strip()
+            if result.returncode != 0:
+                raise RuntimeError(output or f"tailscale serve exited with code {result.returncode}")
+            return output or "Tailscale Serve is enabled. Run 'tailscale serve status' to find your private HTTPS URL."
+
+        self.worker("Tailscale remote access", enable)
 
     def open_config(self) -> None:
         APP_DATA.mkdir(parents=True, exist_ok=True)
