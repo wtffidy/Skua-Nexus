@@ -17,9 +17,10 @@ from urllib.request import urlopen
 FROZEN = bool(getattr(sys, "frozen", False))
 HERE = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
 APP_DATA = Path(os.environ.get("APPDATA", str(Path.home()))) / "SkuaDashboard"
+RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", HERE)) if FROZEN else HERE
 URL = "http://localhost:8787/"
 RELAY = HERE / ("SkuaRelay.exe" if FROZEN else "relay.py")
-ICON = HERE / "SkuaIcon.ico"
+ICON = RESOURCE_DIR / "SkuaIcon.ico"
 
 BG = "#0d0e12"
 CARD = "#14161c"
