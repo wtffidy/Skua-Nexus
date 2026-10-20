@@ -10,6 +10,11 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+
+try:
+    import pystray
+except ImportError:
+    pystray = None
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
@@ -64,6 +69,8 @@ class DashboardApp(tk.Tk):
         self._background_path = str(self.ui_settings.get("background_image", ""))
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
         self.busy = False
+        self.tray_icon = None
+        self.tray_thread = None
 
         self._build_ui()
         self._apply_opacity()
@@ -74,6 +81,7 @@ class DashboardApp(tk.Tk):
         self.after(250, self.drain_messages)
         self.after(500, self.check_status)
         self.protocol("WM_DELETE_WINDOW", self.close)
+        self.bind("<Unmap>", self._on_window_unmap, add="+")
 
     def _build_ui(self) -> None:
         header = tk.Frame(self, bg=BG)
@@ -213,7 +221,7 @@ class DashboardApp(tk.Tk):
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
-        dialog.geometry("470x335")
+        dialog.geometry("470x370")
         tk.Label(dialog, text="APPEARANCE SETTINGS", bg=BG, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(18, 4))
         tk.Label(dialog, text="Choose a custom background image and adjust window opacity.", bg=BG, fg=MUTED, font=("Segoe UI", 9), wraplength=420, justify="left").pack(anchor="w", padx=20, pady=(0, 12))
         image_row = tk.Frame(dialog, bg=BG)
@@ -239,6 +247,9 @@ class DashboardApp(tk.Tk):
         tk.Scale(dialog, from_=60, to=100, orient="horizontal", resolution=1, variable=opacity_var, command=update_opacity, showvalue=False, bg=BG, fg=FG, troughcolor=INNER, activebackground=ACCENT, highlightthickness=0, bd=0, length=420).pack(fill="x", padx=20, pady=(0, 10))
         always_on_top_var = tk.BooleanVar(value=bool(self.ui_settings.get("always_on_top", False)))
         tk.Checkbutton(dialog, text="Keep manager above other windows", variable=always_on_top_var, command=lambda: self._set_always_on_top(always_on_top_var.get()), bg=BG, fg=FG, selectcolor=INNER, activebackground=BG, activeforeground=FG, font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=(0, 4))
+        minimize_to_tray_var = tk.BooleanVar(value=bool(self.ui_settings.get("minimize_to_tray", False)))
+        tk.Checkbutton(dialog, text="Minimize to system tray", variable=minimize_to_tray_var, bg=BG, fg=FG, selectcolor=INNER, activebackground=BG, activeforeground=FG, font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=(0, 4))
+        self._appearance_tray_var = minimize_to_tray_var
         open_dashboard_var = tk.BooleanVar(value=bool(self.ui_settings.get("open_dashboard_on_startup", False)))
         tk.Checkbutton(dialog, text="Open dashboard in browser when manager starts", variable=open_dashboard_var, command=lambda: self.ui_settings.__setitem__("open_dashboard_on_startup", open_dashboard_var.get()), bg=BG, fg=FG, selectcolor=INNER, activebackground=BG, activeforeground=FG, font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=(0, 8))
         self._appearance_topmost_var = always_on_top_var
@@ -279,6 +290,7 @@ class DashboardApp(tk.Tk):
     def _save_appearance(self, dialog: tk.Toplevel) -> None:
         self.ui_settings["always_on_top"] = self._appearance_topmost_var.get()
         self.ui_settings["open_dashboard_on_startup"] = self._appearance_dashboard_var.get()
+        self.ui_settings["minimize_to_tray"] = self._appearance_tray_var.get()
         self._save_ui_settings()
         self.log_message("Appearance settings saved.")
         dialog.grab_release()
@@ -287,6 +299,7 @@ class DashboardApp(tk.Tk):
     def _cancel_appearance(self, dialog: tk.Toplevel) -> None:
         self.ui_settings["always_on_top"] = self._appearance_topmost_var.get()
         self.ui_settings["open_dashboard_on_startup"] = self._appearance_dashboard_var.get()
+        self.ui_settings["minimize_to_tray"] = self._appearance_tray_var.get()
         self._save_ui_settings()
         dialog.grab_release()
         dialog.destroy()
@@ -489,13 +502,65 @@ class DashboardApp(tk.Tk):
         except OSError as exc:
             messagebox.showerror("Could not open folder", str(exc))
 
+    def _on_window_unmap(self, event: tk.Event) -> None:
+        if event.widget is self and self.state() == "iconic" and bool(self.ui_settings.get("minimize_to_tray", False)):
+            self.after_idle(self.minimize_to_tray)
+
+    def minimize_to_tray(self) -> None:
+        if not bool(self.ui_settings.get("minimize_to_tray", False)):
+            return
+        if pystray is None or Image is None:
+            self.log_message("System tray support is unavailable. Rebuild with the updated dependencies.")
+            return
+        if self.tray_icon is not None:
+            self.withdraw()
+            return
+        try:
+            if ICON.is_file():
+                with Image.open(ICON) as source:
+                    tray_image = source.convert("RGBA")
+            else:
+                tray_image = Image.new("RGBA", (64, 64), (8, 13, 22, 255))
+            menu = pystray.Menu(
+                pystray.MenuItem("Show Skua Nexus", lambda icon, item: self.after(0, self.restore_from_tray), default=True),
+                pystray.MenuItem("Exit", lambda icon, item: self.after(0, self.close)),
+            )
+            self.tray_icon = pystray.Icon("SkuaNexusManager", tray_image, "Skua Nexus | Manager", menu)
+            self.withdraw()
+            self.tray_thread = threading.Thread(target=self.tray_icon.run, daemon=True)
+            self.tray_thread.start()
+            self.log_message("Manager minimized to the system tray.")
+        except Exception as exc:
+            self.tray_icon = None
+            self.deiconify()
+            self.log_message(f"Could not minimize to system tray: {exc}")
+
+    def restore_from_tray(self) -> None:
+        icon = self.tray_icon
+        self.tray_icon = None
+        if icon is not None:
+            try:
+                icon.stop()
+            except Exception:
+                pass
+        self.deiconify()
+        self.state("normal")
+        self.lift()
+        self.focus_force()
+        self.log_message("Manager restored from the system tray.")
+
     def close(self) -> None:
         if self.process and self.process.poll() is None:
-            if messagebox.askyesno("Exit", "Stop the relay and close the companion?"):
-                self.stop_relay()
-                self.destroy()
-        else:
-            self.destroy()
+            if not messagebox.askyesno("Exit", "Stop the relay and close the companion?"):
+                return
+            self.stop_relay()
+        if self.tray_icon is not None:
+            try:
+                self.tray_icon.stop()
+            except Exception:
+                pass
+            self.tray_icon = None
+        self.destroy()
 
 
 if __name__ == "__main__":
