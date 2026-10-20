@@ -104,6 +104,10 @@ def extract_stats(body: dict[str, Any], embed: dict[str, Any]) -> tuple[dict[str
             pair = parse_pair(value)
             if pair:
                 stats["inv"] = {"used": pair["cur"], "total": pair["max"]}
+            else:
+                count = number(value)
+                if count is not None:
+                    stats["invCount"] = count
             continue
         target = ALIASES.get(key)
         if target and value:
