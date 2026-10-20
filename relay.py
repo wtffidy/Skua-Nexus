@@ -79,11 +79,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Private-Network", "true")  # lets an https page reach localhost
 
-    def _send(self, code: int, body=b"") -> None:
+    def _send(self, code: int, body=b"", ctype: str = "application/json") -> None:
         data = json.dumps(body).encode() if isinstance(body, (dict, list)) else body
         self.send_response(code)
         self._cors()
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -93,7 +93,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path == "/bots":
+        if path in ("/", "/index.html"):  # serve the dashboard from this PC too, so nothing leaves localhost
+            page = HERE / "index.html"
+            self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
+        elif path == "/bots":
             with LOCK:
                 self._send(200, list(BOTS.values()))
         elif path == "/raw":
@@ -130,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = CFG["port"]
-    print(f"Skua relay running. Put this in the client's Discord Webhook URL field:\n  http://localhost:{port}/api/webhooks/1/{CFG['push_key']}")
+    print(f"Skua relay running. Dashboard: http://localhost:{port}/\nPut this in the client's Discord Webhook URL field:\n  http://localhost:{port}/api/webhooks/1/{CFG['push_key']}")
     if not CFG["discord_webhook"]:
         print("(No Discord webhook set in config.json, so nothing is forwarded to Discord.)")
     try:
