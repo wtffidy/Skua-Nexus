@@ -9,6 +9,7 @@
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of Skua Dashboard is already installed." />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="SkuaDashboardIcon" SourceFile="SkuaIcon.ico" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Skua Dashboard" />
@@ -16,6 +17,7 @@
 
     <Feature Id="MainApplication" Title="Skua Dashboard" Level="1">
       <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="DesktopShortcutComponent" />
     </Feature>
   </Package>
 
@@ -28,5 +30,22 @@
         <File Id="SkuaRelayExe" Source="dist\SkuaRelay.exe" KeyPath="yes" />
       </Component>
     </ComponentGroup>
+
+    <Component Id="DesktopShortcutComponent" Directory="CommonDesktopFolder" Guid="*">
+      <Shortcut
+        Id="SkuaDashboardDesktopShortcut"
+        Name="Skua Dashboard"
+        Target="[#SkuaManagerExe]"
+        WorkingDirectory="INSTALLFOLDER"
+        Icon="SkuaDashboardIcon"
+        Advertise="no" />
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\wtffidy\SkuaDashboard"
+        Name="DesktopShortcut"
+        Type="integer"
+        Value="1"
+        KeyPath="yes" />
+    </Component>
   </Fragment>
 </Wix>
