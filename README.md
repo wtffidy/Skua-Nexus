@@ -2,21 +2,20 @@
 
 A browser dashboard and local relay for Skua/VibeSkua.
 
-## Windows packaging (Velopack)
+## Windows packaging and GitHub releases
 
-Build the Windows installer locally from VS Code/PowerShell with Velopack. This uses PyInstaller's **onedir** output, which Velopack requires; do not switch these builds to `--onefile`.
+Build the Windows installer from the repository's root folder on Windows. The build script installs the required Python packages automatically and uses PyInstaller's **onedir** output, which Velopack requires.
 
-Install the .NET SDK, open a terminal in the repository folder, and run:
+1. Make sure the version in `version.txt` is the version you intend to release.
+2. Run `build.bat` and follow the prompt to increment the patch version or keep the current version. Alternatively, run `build-velopack.ps1 -Version 1.0.0` in PowerShell, replacing `1.0.0` with your chosen version.
+3. Wait for the build to finish. The generated Velopack files are placed in `Releases\\`. Run `Releases\\Setup.exe` to test the installer before publishing.
+4. Open the repository on GitHub and choose **Releases → Draft a new release**.
+5. Create a tag matching the version, prefixed with `v` (for example, `v1.0.0`). Upload the generated Velopack release files from `Releases\\` together, keeping their filenames unchanged. This normally includes `Setup.exe`, the `.nupkg` package file(s), and the `RELEASES` manifest if generated.
+6. Add release notes and publish the release.
 
-```powershell
-.\build-velopack.ps1 -Version 0.1.0
-```
+The build script does **not** publish releases to GitHub automatically. The Manager's **Check for Updates** feature checks the latest published GitHub release and looks for an asset ending in `Setup.exe`, so attach the installer to each release. Keep versions in Semantic Versioning format and increment the version for each release.
 
-The script installs/updates PyInstaller, installs the Velopack CLI if needed, downloads `SkuaIcon.ico` if it is missing, builds the manager and relay, and creates Velopack release files in `Releases\`. Run the generated `Setup.exe` to test installation. Velopack creates Start Menu and desktop shortcuts by default.
-
-When testing passes, publish the generated Velopack release files using the distribution method you choose. Keep the version in SemVer format (for example `0.1.0`, `0.1.1`, or `1.0.0`); increment it for each release. The script does not publish anything to GitHub automatically.
-
-User configuration and bot data are stored in `%APPDATA%\SkuaDashboard\config.json` and `%APPDATA%\SkuaDashboard\bots.json`. They are kept outside the application install directory so upgrades do not overwrite them. Back up this folder before uninstalling if you want to preserve your settings.
+User configuration and bot data are stored in `%APPDATA%\\SkuaDashboard\\config.json` and `%APPDATA%\\SkuaDashboard\\bots.json`. They are kept outside the application install directory so upgrades do not overwrite them. Back up this folder before uninstalling if you want to preserve your settings.
 
 ## Start (Windows)
 
