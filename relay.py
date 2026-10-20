@@ -229,9 +229,43 @@ def process_usage() -> dict[str, Any]:
         kernel32.OpenProcess.restype = wintypes.HANDLE
         kernel32.GetProcessTimes.argtypes = [wintypes.HANDLE, ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME), ctypes.POINTER(FILETIME)]
         kernel32.GetProcessTimes.restype = wintypes.BOOL
+        kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
         kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
         psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(PROCESS_MEMORY_COUNTERS), wintypes.DWORD]
         psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+        version_api = ctypes.WinDLL("version", use_last_error=True)
+        version_api.GetFileVersionInfoSizeW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(wintypes.DWORD)]
+        version_api.GetFileVersionInfoSizeW.restype = wintypes.DWORD
+        version_api.GetFileVersionInfoW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p]
+        version_api.GetFileVersionInfoW.restype = wintypes.BOOL
+        version_api.VerQueryValueW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.UINT)]
+        version_api.VerQueryValueW.restype = wintypes.BOOL
+
+        class VS_FIXEDFILEINFO(ctypes.Structure):
+            _fields_ = [("dwSignature", wintypes.DWORD), ("dwStrucVersion", wintypes.DWORD),
+                        ("dwFileVersionMS", wintypes.DWORD), ("dwFileVersionLS", wintypes.DWORD),
+                        ("dwProductVersionMS", wintypes.DWORD), ("dwProductVersionLS", wintypes.DWORD),
+                        ("dwFileFlagsMask", wintypes.DWORD), ("dwFileFlags", wintypes.DWORD),
+                        ("dwFileOS", wintypes.DWORD), ("dwFileType", wintypes.DWORD),
+                        ("dwFileSubtype", wintypes.DWORD), ("dwFileDateMS", wintypes.DWORD),
+                        ("dwFileDateLS", wintypes.DWORD)]
+
+        def read_product_version(file_path: str) -> str | None:
+            ignored = wintypes.DWORD(0)
+            size = version_api.GetFileVersionInfoSizeW(file_path, ctypes.byref(ignored))
+            if not size:
+                return None
+            buffer = ctypes.create_string_buffer(size)
+            if not version_api.GetFileVersionInfoW(file_path, 0, size, buffer):
+                return None
+            pointer, length = ctypes.c_void_p(), wintypes.UINT(0)
+            if not version_api.VerQueryValueW(buffer, "\\\\", ctypes.byref(pointer), ctypes.byref(length)) or not pointer.value:
+                return None
+            info = ctypes.cast(pointer, ctypes.POINTER(VS_FIXEDFILEINFO)).contents
+            major, minor = info.dwProductVersionMS >> 16, info.dwProductVersionMS & 0xFFFF
+            build, revision = info.dwProductVersionLS >> 16, info.dwProductVersionLS & 0xFFFF
+            return f"{major}.{minor}.{build}" + (f".{revision}" if revision else "")
 
         snapshot = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
         if snapshot == wintypes.HANDLE(-1).value:
@@ -241,6 +275,7 @@ def process_usage() -> dict[str, Any]:
         total_cpu_100ns = 0
         total_memory = 0
         oldest_creation = None
+        product_version = None
         found = 0
         current_samples: dict[int, tuple[int, int]] = {}
         entry = PROCESSENTRY32W()
@@ -253,6 +288,10 @@ def process_usage() -> dict[str, Any]:
                     handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_VM_READ, False, entry.th32ProcessID)
                     if handle:
                         try:
+                            path_buffer = ctypes.create_unicode_buffer(32768)
+                            path_length = wintypes.DWORD(len(path_buffer))
+                            if kernel32.QueryFullProcessImageNameW(handle, 0, path_buffer, ctypes.byref(path_length)) and product_version is None:
+                                product_version = read_product_version(path_buffer.value)
                             created, exited, kernel_time, user_time = FILETIME(), FILETIME(), FILETIME(), FILETIME()
                             if not kernel32.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited), ctypes.byref(kernel_time), ctypes.byref(user_time)):
                                 has_entry = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
@@ -307,6 +346,7 @@ def process_usage() -> dict[str, Any]:
             "memoryBytes": total_memory,
             "uptimeSeconds": uptime_seconds,
             "processName": "VibeSkua",
+            "version": product_version,
         }
     except Exception as exc:
         return {"available": False, "reason": f"Process metrics unavailable: {type(exc).__name__}"}
