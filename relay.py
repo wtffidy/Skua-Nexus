@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local relay for the Skua dashboard. Standard library only."""
+"""Local relay for the Skua Nexus dashboard. Standard library only."""
 import base64
 import hashlib
 import ipaddress
