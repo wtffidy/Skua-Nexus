@@ -2,13 +2,21 @@
 
 A browser dashboard and local relay for Skua/VibeSkua.
 
-## Windows installer (MSI)
+## Windows packaging (Velopack)
 
-The project is being prepared for a native Windows MSI release. Once a version is published, download **SkuaDashboard-Setup-x64.msi** from the [GitHub Releases page](https://github.com/wtffidy/skua-dashboard/releases). The installer build bundles the manager and relay, so end users will not need to install Python or Git.
+Build the Windows installer locally from VS Code/PowerShell with Velopack. This uses PyInstaller's **onedir** output, which Velopack requires; do not switch these builds to `--onefile`.
 
-The MSI build is defined in `.github/workflows/build-msi.yml` and `installer.wxs`. A version tag such as `v0.1.0` builds an MSI and attaches it to a GitHub Release. Use the workflow's **Run workflow** action to build a test artifact without publishing a release.
+Install the .NET SDK, open a terminal in the repository folder, and run:
 
-User configuration and bot data are stored in `%APPDATA%\\SkuaDashboard\\config.json` and `%APPDATA%\\SkuaDashboard\\bots.json`. They are kept outside the installation directory so app upgrades do not overwrite them. Back up this folder before uninstalling if you want to preserve your settings.
+```powershell
+.\build-velopack.ps1 -Version 0.1.0
+```
+
+The script installs/updates PyInstaller, installs the Velopack CLI if needed, downloads `SkuaIcon.ico` if it is missing, builds the manager and relay, and creates Velopack release files in `Releases\`. Run the generated `Setup.exe` to test installation. Velopack creates Start Menu and desktop shortcuts by default.
+
+When testing passes, publish the generated Velopack release files using the distribution method you choose. Keep the version in SemVer format (for example `0.1.0`, `0.1.1`, or `1.0.0`); increment it for each release. The script does not publish anything to GitHub automatically.
+
+User configuration and bot data are stored in `%APPDATA%\SkuaDashboard\config.json` and `%APPDATA%\SkuaDashboard\bots.json`. They are kept outside the application install directory so upgrades do not overwrite them. Back up this folder before uninstalling if you want to preserve your settings.
 
 ## Start (Windows)
 
