@@ -27,7 +27,7 @@ Run `start-gui.bat` to launch the desktop companion. It automatically starts the
 - **Fetch Latest Git Updates** runs `git pull --ff-only`; if updates are pulled, it restarts the relay so the new code is loaded.
 - **Open Repository Folder** opens this checkout in File Explorer.
 
-The GUI starts the relay automatically if it is not already reachable. Keep the companion open while you want it to manage the relay. The dashboard website itself remains unchanged.
+The GUI starts the relay automatically if it is not already reachable. Keep the companion open while you want it to manage the relay. The dashboard website itself remains unchanged. The Manager also recognizes Velopack's install/update/uninstall lifecycle arguments and exits immediately for those calls, preventing the GUI from opening during uninstall.
 
 ### Manager window icon
 
