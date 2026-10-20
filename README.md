@@ -20,7 +20,7 @@ User configuration and bot data are stored in `%APPDATA%\SkuaDashboard\config.js
 
 ## Start (Windows)
 
-Run `start-gui.bat` to launch the desktop companion. It automatically starts the local relay if it is not already running; use **Open / Reload Dashboard** to open `http://localhost:8787` in your browser. The GUI uses Python's built-in Tkinter and does not need extra Python packages. The old standalone `start.bat` launcher has been removed so the GUI is the normal entry point.
+Run `start-gui.bat` to launch the desktop companion. It automatically starts the local relay if it is not already running; use **Open / Reload Dashboard** to open `http://127.0.0.1:8787` in your browser. The manager uses the numeric loopback address to avoid Windows resolving `localhost` to an IPv6 address that the relay is not listening on. The GUI uses Python's built-in Tkinter and does not need extra Python packages. The old standalone `start.bat` launcher has been removed so the GUI is the normal entry point.
 
 - **Open / Reload Dashboard** opens the local dashboard in your default browser.
 - **Restart Relay** restarts the local Python relay.
@@ -65,7 +65,7 @@ These are **process-level** measurements. VibeSkua hosts multiple game tabs insi
 
 ## Security and LAN access
 
-The relay listens on `0.0.0.0:8787` by default so devices on your private network can reach it. Localhost requests on the PC continue to work without a read key. Requests from other devices must supply the generated `read_key` from `%APPDATA%\\SkuaDashboard\\config.json`; enter it in the dashboard's **Settings → Read/access key** field. The webhook's separate `push_key` is not the read key and should not be shared.
+For safety, the relay listens on `127.0.0.1:8787` by default, so only this PC can connect. The manager uses `http://127.0.0.1:8787/` consistently. To allow other devices on your trusted private network, change `"host"` in `%APPDATA%\\SkuaDashboard\\config.json` to `"0.0.0.0"` and restart the relay. Localhost requests on the PC do not need a read key. Requests from other devices must supply the generated `read_key` from that config file; enter it in the dashboard's **Settings → Read/access key** field. The webhook's separate `push_key` is not the read key and should not be shared. Do not set the host to your PC's specific LAN IPv4 address; use `0.0.0.0` for LAN access so the local manager can still connect through loopback.
 
 For same-Wi-Fi access:
 
@@ -83,7 +83,7 @@ The dashboard is served locally at `http://localhost:8787/`.
 ### On the same home Wi-Fi
 
 1. Find your Windows PC's LAN IPv4 address with `ipconfig` (look for the active Wi-Fi/Ethernet adapter's `IPv4 Address`).
-2. For phone access, the dashboard server must listen on the LAN interface, not only `127.0.0.1`. If it is bound to localhost, a phone cannot reach it by using the PC's IP.
+2. For phone access, change `"host"` in `%APPDATA%\\SkuaDashboard\\config.json` to `"0.0.0.0"` and restart the relay. This listens on the LAN interface and still accepts local manager connections through `127.0.0.1`; a `127.0.0.1`-only listener cannot be reached by phone using the PC's IP.
 3. Create a Windows Firewall rule if needed (exact steps below), then open `http://<PC-LAN-IP>:8787/` on your phone and enter the `read_key` from `config.json` in Dashboard Settings.
 4. Keep the PC and phone on the same Wi-Fi. Some guest Wi-Fi networks isolate devices and prevent this connection.
 
