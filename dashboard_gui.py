@@ -67,6 +67,7 @@ class DashboardApp(tk.Tk):
 
         self._build_ui()
         self._apply_opacity()
+        self.attributes("-topmost", bool(self.ui_settings.get("always_on_top", False)))
         self._load_background_image()
         self.bind("<Configure>", self._on_window_resize, add="+")
         self.log_message("Ready. Settings and bot data are stored in your AppData folder.")
@@ -135,8 +136,10 @@ class DashboardApp(tk.Tk):
         log_header.pack(fill="x", padx=24, pady=(16, 7))
         tk.Label(log_header, text="SYSTEM TELEMETRY", bg=BG, fg=ACCENT,
                  font=("Segoe UI", 9, "bold")).pack(side="left")
-        tk.Label(log_header, text="Live relay and update events", bg=BG, fg=MUTED,
-                 font=("Segoe UI", 9)).pack(side="right")
+        log_actions = tk.Frame(log_header, bg=BG)
+        log_actions.pack(side="right")
+        self._button(log_actions, "Open Relay Log", self.open_relay_log).pack(side="right", padx=(6, 0))
+        self._button(log_actions, "Clear", self.clear_log).pack(side="right")
 
         log_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
         log_card.pack(fill="both", expand=True, padx=22, pady=(0, 20))
@@ -210,7 +213,7 @@ class DashboardApp(tk.Tk):
         dialog.resizable(False, False)
         dialog.transient(self)
         dialog.grab_set()
-        dialog.geometry("470x250")
+        dialog.geometry("470x335")
         tk.Label(dialog, text="APPEARANCE SETTINGS", bg=BG, fg=ACCENT, font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(18, 4))
         tk.Label(dialog, text="Choose a custom background image and adjust window opacity.", bg=BG, fg=MUTED, font=("Segoe UI", 9), wraplength=420, justify="left").pack(anchor="w", padx=20, pady=(0, 12))
         image_row = tk.Frame(dialog, bg=BG)
@@ -234,6 +237,12 @@ class DashboardApp(tk.Tk):
             self.ui_settings["opacity"] = opacity
             self._apply_opacity()
         tk.Scale(dialog, from_=60, to=100, orient="horizontal", resolution=1, variable=opacity_var, command=update_opacity, showvalue=False, bg=BG, fg=FG, troughcolor=INNER, activebackground=ACCENT, highlightthickness=0, bd=0, length=420).pack(fill="x", padx=20, pady=(0, 10))
+        always_on_top_var = tk.BooleanVar(value=bool(self.ui_settings.get("always_on_top", False)))
+        tk.Checkbutton(dialog, text="Keep manager above other windows", variable=always_on_top_var, command=lambda: self._set_always_on_top(always_on_top_var.get()), bg=BG, fg=FG, selectcolor=INNER, activebackground=BG, activeforeground=FG, font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=(0, 4))
+        open_dashboard_var = tk.BooleanVar(value=bool(self.ui_settings.get("open_dashboard_on_startup", False)))
+        tk.Checkbutton(dialog, text="Open dashboard in browser when manager starts", variable=open_dashboard_var, command=lambda: self.ui_settings.__setitem__("open_dashboard_on_startup", open_dashboard_var.get()), bg=BG, fg=FG, selectcolor=INNER, activebackground=BG, activeforeground=FG, font=("Segoe UI", 9)).pack(anchor="w", padx=20, pady=(0, 8))
+        self._appearance_topmost_var = always_on_top_var
+        self._appearance_dashboard_var = open_dashboard_var
         footer = tk.Frame(dialog, bg=BG)
         footer.pack(fill="x", padx=20, pady=(0, 16))
         self._button(footer, "Save", lambda: self._save_appearance(dialog), primary=True).pack(side="right")
@@ -263,13 +272,21 @@ class DashboardApp(tk.Tk):
             self._background_label.lower()
         self.background_path_label.configure(text="None selected")
 
+    def _set_always_on_top(self, enabled: bool) -> None:
+        self.ui_settings["always_on_top"] = enabled
+        self.attributes("-topmost", enabled)
+
     def _save_appearance(self, dialog: tk.Toplevel) -> None:
+        self.ui_settings["always_on_top"] = self._appearance_topmost_var.get()
+        self.ui_settings["open_dashboard_on_startup"] = self._appearance_dashboard_var.get()
         self._save_ui_settings()
         self.log_message("Appearance settings saved.")
         dialog.grab_release()
         dialog.destroy()
 
     def _cancel_appearance(self, dialog: tk.Toplevel) -> None:
+        self.ui_settings["always_on_top"] = self._appearance_topmost_var.get()
+        self.ui_settings["open_dashboard_on_startup"] = self._appearance_dashboard_var.get()
         self._save_ui_settings()
         dialog.grab_release()
         dialog.destroy()
@@ -289,6 +306,24 @@ class DashboardApp(tk.Tk):
         )
         return button
 
+    def clear_log(self) -> None:
+        self.log.configure(state="normal")
+        self.log.delete("1.0", "end")
+        self.log.configure(state="disabled")
+        self.log_message("Log view cleared. The relay log file was not deleted.")
+
+    def open_relay_log(self) -> None:
+        APP_DATA.mkdir(parents=True, exist_ok=True)
+        if not self.relay_log_path.exists():
+            self.relay_log_path.touch()
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(self.relay_log_path))
+            else:
+                webbrowser.open(self.relay_log_path.as_uri())
+            self.log_message(f"Opened relay log: {self.relay_log_path}")
+        except OSError as exc:
+            messagebox.showerror("Could not open relay log", str(exc))
     def log_message(self, message: str) -> None:
         self.log.configure(state="normal")
         tag = "error" if "failed" in message.lower() or "error" in message.lower() else (
@@ -343,6 +378,15 @@ class DashboardApp(tk.Tk):
         self.status.configure(text="Relay online" if alive else "Relay not responding", fg=GREEN if alive else AMBER)
         self.after(5000, self.check_status)
 
+    def open_dashboard_when_ready(self, attempt: int = 0) -> None:
+        if self.relay_responds():
+            webbrowser.open(URL, new=0, autoraise=True)
+            self.log_message("Opened dashboard automatically after relay became available.")
+            return
+        if attempt >= 30:
+            self.log_message("Dashboard auto-open skipped because the relay did not become ready in 15 seconds.")
+            return
+        self.after(500, lambda: self.open_dashboard_when_ready(attempt + 1))
     def open_dashboard(self) -> None:
         if not self.relay_responds():
             if not messagebox.askyesno("Relay is offline", "The local relay is not responding. Start it now?"):
@@ -469,4 +513,6 @@ if __name__ == "__main__":
     app = DashboardApp()
     if not app.relay_responds():
         app.start_relay()
+    if bool(app.ui_settings.get("open_dashboard_on_startup", False)):
+        app.after(750, app.open_dashboard_when_ready)
     app.mainloop()
