@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Local relay for the Skua dashboard. Standard library only, so there is nothing to install.
-
-Client webhook  ->  this script (localhost)  ->  Discord (optional, forwarded unchanged)
-GitHub Pages dashboard  ->  GET http://localhost:8787/bots
-"""
+"""Local relay for the Skua dashboard. Standard library only."""
 import json
 import re
 import secrets
@@ -22,46 +18,131 @@ DEFAULTS = {"port": 8787, "push_key": "", "discord_webhook": "", "allowed_origin
 
 def load_config() -> dict:
     cfg = {**DEFAULTS, **(json.loads(CFG_PATH.read_text()) if CFG_PATH.exists() else {})}
-    cfg["push_key"] = cfg["push_key"] or secrets.token_hex(12)  # generated once, then saved
+    cfg["push_key"] = cfg["push_key"] or secrets.token_hex(12)
     CFG_PATH.write_text(json.dumps(cfg, indent=2))
     return cfg
 
 
 CFG = load_config()
 LOCK = threading.Lock()
-RAW = deque(maxlen=20)  # last payloads, handy for seeing what the client really sends
+RAW = deque(maxlen=20)
 BOTS = {}
-if DATA_PATH.exists():  # keep recent bots across restarts, drop anything older than a day
+if DATA_PATH.exists():
     try:
-        BOTS = {k: v for k, v in json.loads(DATA_PATH.read_text()).items() if time.time() * 1000 - v.get("updated", 0) < 86_400_000}
-    except (ValueError, OSError):
+        loaded = json.loads(DATA_PATH.read_text())
+        if isinstance(loaded, dict):
+            BOTS = {k: v for k, v in loaded.items()
+                    if isinstance(v, dict) and time.time() * 1000 - v.get("updated", 0) < 86_400_000}
+    except (ValueError, OSError, AttributeError):
         BOTS = {}
 
-
 BOLD = re.compile(r"\*\*(.+?)\*\*")
-# Embed title keyword -> status shown on the card (first match wins)
-STATUS = (("start", "Running script"), ("conclud", "Stopped"), ("stop", "Stopped"), ("crash", "Crashed"), ("relog", "Relogging"))
+NUMBER = re.compile(r"-?\d[\d,]*")
+STATUS = (("start", "Running script"), ("conclud", "Stopped"), ("stop", "Stopped"),
+          ("crash", "Crashed"), ("relog", "Relogging"))
+ALIASES = {
+    "map": "map", "location": "map", "room": "room", "level": "level",
+    "class": "class", "character class": "class", "gold": "gold", "ac": "ac",
+    "adventurecoins": "ac", "adventure coins": "ac", "script": "script",
+    "quest": "quest", "current quest": "quest", "weapon": "weapon", "equipment": "weapon",
+    "kills": "kills", "kill": "kills", "drops": "drops", "quests": "quests",
+    "deaths": "deaths", "relogins": "relogins", "relogs": "relogins",
+    "skua memory": "skuaMem", "skua mem": "skuaMem", "game memory": "gameMem", "game mem": "gameMem",
+}
+
+
+def clean_label(value) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", str(value or "").lower()).strip()
+
+
+def number(value):
+    match = NUMBER.search(str(value or ""))
+    if not match:
+        return None
+    try:
+        return int(match.group().replace(",", ""))
+    except ValueError:
+        return None
+
+
+def parse_pair(value):
+    nums = NUMBER.findall(str(value or ""))
+    if len(nums) < 2:
+        return None
+    try:
+        return {"cur": int(nums[0].replace(",", "")), "max": int(nums[1].replace(",", ""))}
+    except ValueError:
+        return None
+
+
+def extract_stats(body: dict, embed: dict) -> tuple[dict, list]:
+    """Normalize custom stats and common Discord embed fields into dashboard properties."""
+    raw_stats = body.get("stats")
+    stats = dict(raw_stats) if isinstance(raw_stats, dict) else {}
+    fields = embed.get("fields") or []
+    visible_fields = []
+    for field in fields:
+        if not isinstance(field, dict):
+            continue
+        label, value = str(field.get("name") or "").strip(), str(field.get("value") or "").strip()
+        if not label:
+            continue
+        visible_fields.append({"name": label, "value": value})
+        key = clean_label(label)
+        if key in ("hp", "health", "health points"):
+            pair = parse_pair(value)
+            if pair and "hp" not in stats:
+                stats["hp"] = pair
+            continue
+        if key in ("mp", "mana", "mana points"):
+            pair = parse_pair(value)
+            if pair and "mp" not in stats:
+                stats["mp"] = pair
+            continue
+        if key in ("inventory", "inv", "inventory slots"):
+            pair = parse_pair(value)
+            if pair and "inv" not in stats:
+                stats["inv"] = {"used": pair["cur"], "total": pair["max"]}
+            continue
+        target = ALIASES.get(key)
+        if target and target not in stats and value:
+            if target in ("gold", "ac", "level", "kills", "drops", "quests", "deaths", "relogins", "skuaMem", "gameMem"):
+                parsed = number(value)
+                if parsed is not None:
+                    stats[target] = parsed
+            else:
+                stats[target] = re.sub(r"\*", "", value).strip()
+    return stats, visible_fields
 
 
 def record(body: dict) -> dict:
-    """Store the bot's latest state; returns the body to forward (without our private 'stats' key)."""
+    """Store bot state and return the webhook body for optional Discord forwarding."""
     RAW.append(dict(body))
     stats = body.pop("stats", None) or {}
-    e = (body.get("embeds") or [{}])[0] or {}
-    desc = e.get("description") or ""
-    bold = BOLD.findall(desc)  # alerts look like "**Account** has begun execution of **Script**."
-    name = body.get("username") or (e.get("author") or {}).get("name") or (bold[0] if bold else None) or (e.get("footer") or {}).get("text") or "unknown"
-    title = (e.get("title") or "").lower()
+    embeds = body.get("embeds") or [{}]
+    embed = embeds[0] if embeds and isinstance(embeds[0], dict) else {}
+    desc = embed.get("description") or ""
+    bold = BOLD.findall(desc)
+    name = (body.get("username") or (embed.get("author") or {}).get("name") or
+            (bold[0] if bold else None) or (embed.get("footer") or {}).get("text") or "unknown")
+    title = (embed.get("title") or "").lower()
+    normalized, fields = extract_stats({"stats": stats}, embed)
+    now = int(time.time() * 1000)
     with LOCK:
         prev = BOTS.get(name, {})
-        status = next((label for key, label in STATUS if key in title), None) or e.get("title") or prev.get("status")
-        script = bold[1] if len(bold) > 1 else prev.get("script")
-        # Merge so earlier stats survive a plain text alert
-        BOTS[name] = {**prev, "status": status, "script": script, **stats, "name": name, "updated": int(time.time() * 1000),
-                      "last": body.get("content") or desc.replace("**", "") or e.get("title") or prev.get("last"),
-                      "fields": e.get("fields") or prev.get("fields")}
-        DATA_PATH.write_text(json.dumps(BOTS))
-    print(time.strftime("%H:%M:%S"), name, "|", json.dumps(RAW[-1])[:300])
+        status = next((label for key, label in STATUS if key in title), None) or embed.get("title") or prev.get("status")
+        script = bold[1] if len(bold) > 1 else normalized.get("script", prev.get("script"))
+        # Status-only webhook alerts must not make stale game data look freshly reported.
+        has_state = bool(normalized)
+        updated = now if has_state else prev.get("updated", 0)
+        merged = {**prev, **normalized}
+        BOTS[name] = {
+            **merged, "status": status, "script": script, "name": name, "updated": updated,
+            "last": body.get("content") or desc.replace("**", "") or embed.get("title") or prev.get("last"),
+            "fields": fields or prev.get("fields", []),
+        }
+        DATA_PATH.write_text(json.dumps(BOTS, ensure_ascii=False))
+    print(time.strftime("%H:%M:%S"), name, "|", json.dumps(RAW[-1], ensure_ascii=False)[:300])
     return body
 
 
@@ -69,8 +150,8 @@ def forward(body: dict) -> None:
     url = CFG["discord_webhook"]
     if not url:
         return
-    # Discord rejects Python's default User-Agent, so send our own
-    req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json", "User-Agent": "SkuaRelay/1.0"})
+    req = urllib.request.Request(url, json.dumps(body).encode(),
+                                 {"Content-Type": "application/json", "User-Agent": "SkuaRelay/1.0"})
     try:
         urllib.request.urlopen(req, timeout=10).close()
     except Exception as ex:
@@ -78,7 +159,7 @@ def forward(body: dict) -> None:
 
 
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):  # silence the default per-request logging
+    def log_message(self, *args):
         pass
 
     def _cors(self) -> None:
@@ -88,7 +169,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
         self.send_header("Access-Control-Allow-Headers", "Authorization, Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
-        self.send_header("Access-Control-Allow-Private-Network", "true")  # lets an https page reach localhost
+        self.send_header("Access-Control-Allow-Private-Network", "true")
 
     def _send(self, code: int, body=b"", ctype: str = "application/json") -> None:
         data = json.dumps(body).encode() if isinstance(body, (dict, list)) else body
@@ -97,38 +178,38 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
-        self.wfile.write(data)
+        if code != 204 and data:
+            self.wfile.write(data)
 
     def do_OPTIONS(self):
         self._send(204)
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path in ("/", "/index.html"):  # serve the dashboard from this PC too, so nothing leaves localhost
+        if path in ("/", "/index.html"):
             page = HERE / "index.html"
             self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
         elif path == "/bots":
             with LOCK:
                 self._send(200, list(BOTS.values()))
         elif path == "/raw":
-            self._send(200, list(RAW))
+            with LOCK:
+                self._send(200, list(RAW))
         else:
             self._send(404, b"not found")
 
     def do_DELETE(self):
-        # DELETE /bots/<name> removes one bot card (the dashboard's X button)
         parts = [unquote(p) for p in urlparse(self.path).path.split("/") if p]
         if len(parts) != 2 or parts[0] != "bots":
             return self._send(404, b"not found")
         with LOCK:
             found = BOTS.pop(parts[1], None) is not None
-            DATA_PATH.write_text(json.dumps(BOTS))
+            DATA_PATH.write_text(json.dumps(BOTS, ensure_ascii=False))
         self._send(200 if found else 404, b"ok" if found else b"no such bot")
 
     def do_POST(self):
         u = urlparse(self.path)
         parts = [p for p in u.path.split("/") if p]
-        # Accepts /hook?key=KEY or a Discord-lookalike /api/webhooks/<id>/KEY
         if not (u.path == "/hook" or parts[:2] == ["api", "webhooks"]):
             return self._send(404, b"not found")
         key = (parse_qs(u.query).get("key") or [parts[3] if len(parts) > 3 else ""])[0]
@@ -136,11 +217,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(401, b"no")
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
-        except ValueError:
+        except (ValueError, TypeError):
             return self._send(400, b"bad json")
-        threading.Thread(target=forward, args=(record(body),), daemon=True).start()
-        self._send(204)  # same reply Discord gives, so the client sees success
-
+        if not isinstance(body, dict):
+            return self._send(400, b"expected JSON object")
+        forwarded = record(body)
+        threading.Thread(target=forward, args=(forwarded,), daemon=True).start()
+        self._send(204)
 
 if __name__ == "__main__":
     port = CFG["port"]
@@ -148,6 +231,6 @@ if __name__ == "__main__":
     if not CFG["discord_webhook"]:
         print("(No Discord webhook set in config.json, so nothing is forwarded to Discord.)")
     try:
-        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()  # 127.0.0.1 = this PC only
+        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
     except OSError as ex:
         print(f"Could not start on port {port}: {ex}")
