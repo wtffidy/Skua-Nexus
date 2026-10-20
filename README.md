@@ -140,10 +140,11 @@ Use **Tailscale Serve**, not Funnel, to keep the dashboard private to your tailn
 
 ## Health ping / refresh interval
 
-The patched VibeSkua service sends one dashboard snapshot immediately when a script starts. Repeated snapshots are controlled by VibeSkua's `WebhookPingInterval` client setting, measured in **minutes**.
+The patched VibeSkua service sends one dashboard snapshot immediately when a script starts, then refreshes it every **5 seconds by default** while a script is running. This gives near-real-time dashboard updates without flooding Discord: the relay records and broadcasts `Health Ping` telemetry to the dashboard but does not forward those health snapshots as Discord messages.
 
-- The patched service defaults to a snapshot every **1 minute** when `WebhookPingInterval` is `0` or less.
-- Set `WebhookPingInterval` to `1` for a snapshot every minute, or `2` for every two minutes.
+- `WebhookPingInterval = 0` (or less) uses the 5-second dashboard refresh default.
+- Set `WebhookPingInterval` to a positive number to override the default in **minutes** (for example, `1` means every minute).
+- The timer only runs while a script is running; it stops when the script stops or errors.
 - The timer only runs while a script is running; it stops when the script stops or errors.
 - Rebuild and run the patched VibeSkua client after changing its source patch. A settings-only change generally requires restarting the script so the timer is started again.
 
