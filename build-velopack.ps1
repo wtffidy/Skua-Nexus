@@ -73,6 +73,7 @@ Write-Host "Building SkuaManager and SkuaRelay in parallel..."
 $ManagerJob = Start-Job -Name "Build-SkuaManager" -ArgumentList $Root, $IconPath, $BuildRoot, $DistRoot -ScriptBlock {
     param($Root, $IconPath, $BuildRoot, $DistRoot)
     Set-Location $Root
+    $PSNativeCommandUseErrorActionPreference = $false
     $PyInstallerArgs = @(
         "-m", "PyInstaller", "--noconfirm", "--onedir", "--contents-directory", "manager_internal",
         "--name", "SkuaManager", "--distpath", $DistRoot,
@@ -82,7 +83,7 @@ $ManagerJob = Start-Job -Name "Build-SkuaManager" -ArgumentList $Root, $IconPath
         "--add-data", "$IconPath;.",
         (Join-Path $Root "dashboard_gui.py")
     )
-    & python @PyInstallerArgs
+    & python @PyInstallerArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw "SkuaManager build failed with exit code $LASTEXITCODE." }
 }
 
@@ -99,7 +100,7 @@ $RelayJob = Start-Job -Name "Build-SkuaRelay" -ArgumentList $Root, $IconPath, $I
         "--add-data", "$IndexPath;.",
         (Join-Path $Root "relay.py")
     )
-    & python @PyInstallerArgs
+    & python @PyInstallerArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw "SkuaRelay build failed with exit code $LASTEXITCODE." }
 }
 
