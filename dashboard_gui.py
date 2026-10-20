@@ -214,7 +214,7 @@ class DashboardApp(tk.Tk):
         try:
             APP_DATA.mkdir(parents=True, exist_ok=True)
             self.relay_log_handle = self.relay_log_path.open("a", encoding="utf-8", errors="replace")
-            self.relay_log_handle.write(f"\\n--- Relay launch {__import__('datetime').datetime.now().isoformat(timespec='seconds')} ---\\n")
+            self.relay_log_handle.write(f"\n--- Relay launch {__import__('datetime').datetime.now().isoformat(timespec='seconds')} ---\n")
             self.relay_log_handle.flush()
             command = [str(RELAY)] if FROZEN else [sys.executable, str(RELAY)]
             self.process = subprocess.Popen(
