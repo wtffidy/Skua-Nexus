@@ -260,7 +260,7 @@ def process_usage() -> dict[str, Any]:
             if not version_api.GetFileVersionInfoW(file_path, 0, size, buffer):
                 return None
             pointer, length = ctypes.c_void_p(), wintypes.UINT(0)
-            if not version_api.VerQueryValueW(buffer, "\\\\", ctypes.byref(pointer), ctypes.byref(length)) or not pointer.value:
+            if not version_api.VerQueryValueW(buffer, "\\", ctypes.byref(pointer), ctypes.byref(length)) or not pointer.value:
                 return None
             info = ctypes.cast(pointer, ctypes.POINTER(VS_FIXEDFILEINFO)).contents
             major, minor = info.dwProductVersionMS >> 16, info.dwProductVersionMS & 0xFFFF
