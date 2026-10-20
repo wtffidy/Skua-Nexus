@@ -484,7 +484,7 @@ class DashboardApp(tk.Tk):
 
     @staticmethod
     def _version_tuple(value: str) -> tuple[int, ...]:
-        numbers = re.findall(r"\\d+", value)
+        numbers = re.findall(r"\d+", value)
         return tuple(int(number) for number in numbers) if numbers else (0,)
 
     def pull_updates(self) -> None:
@@ -492,7 +492,7 @@ class DashboardApp(tk.Tk):
             if not (HERE / ".git").exists():
                 messagebox.showerror("Git repository not found", "This folder is not a Git checkout. Clone the dashboard repository first.")
                 return
-            if not messagebox.askyesno("Fetch latest updates", "Run git pull --ff-only for the dashboard repository?\\n\\nLocal edits that conflict with upstream changes may prevent the update."):
+            if not messagebox.askyesno("Fetch latest updates", "Run git pull --ff-only for the dashboard repository?\n\nLocal edits that conflict with upstream changes may prevent the update."):
                 return
 
             def pull() -> str:
@@ -549,7 +549,7 @@ class DashboardApp(tk.Tk):
         if status == "current":
             self.status.configure(text="Up to date", fg=GREEN)
             self.log_message(f"Update check complete. Installed version {self.current_version}; latest version {result.get('latest')}.")
-            messagebox.showinfo("No updates available", f"Skua Nexus Manager is up to date.\\n\\nInstalled: {self.current_version}\\nLatest: {result.get('latest')}", parent=self)
+            messagebox.showinfo("No updates available", f"Skua Nexus Manager is up to date.\n\nInstalled: {self.current_version}\\nLatest: {result.get('latest')}", parent=self)
             return
         if status == "error":
             self.status.configure(text="Update check failed", fg=RED)
@@ -557,7 +557,7 @@ class DashboardApp(tk.Tk):
             messagebox.showerror("Update check failed", result.get("error", "Could not check for updates."), parent=self)
             return
         latest = result.get("latest", "unknown")
-        if messagebox.askyesno("Update available", f"Skua Nexus Manager {latest} is available.\\nInstalled version: {self.current_version}\\n\\nDownload and install it now?", parent=self):
+        if messagebox.askyesno("Update available", f"Skua Nexus Manager {latest} is available.\nInstalled version: {self.current_version}\\n\\nDownload and install it now?", parent=self):
             self.status.configure(text="Downloading update…", fg=AMBER)
             self.busy = True
             threading.Thread(target=self._download_update, args=(result.get("url", ""), latest), daemon=True).start()
@@ -609,29 +609,6 @@ class DashboardApp(tk.Tk):
             self.log_message(f"Opened config folder: {APP_DATA}")
         except OSError as exc:
             messagebox.showerror("Could not open config folder", str(exc))
-        if not (HERE / ".git").exists():
-            messagebox.showerror("Git repository not found", "This folder is not a Git checkout. Clone the dashboard repository first.")
-            return
-        if not messagebox.askyesno("Fetch latest updates", "Run git pull --ff-only for the dashboard repository?\n\nLocal edits that conflict with upstream changes may prevent the update."):
-            return
-
-        def pull() -> str:
-            result = subprocess.run(
-                ["git", "pull", "--ff-only"], cwd=HERE, capture_output=True,
-                text=True, timeout=120, check=False,
-            )
-            output = (result.stdout + result.stderr).strip()
-            if result.returncode != 0:
-                raise RuntimeError(output or f"git exited with code {result.returncode}")
-            changed = "Already up to date" not in output and "Already up-to-date" not in output
-            self.messages.put(("log", output or "Git pull completed."))
-            if changed:
-                self.messages.put(("log", "Updates were pulled; restarting relay to load them."))
-                self.messages.put(("restart_after_update", ""))
-            return "updates pulled" if changed else "already up to date"
-
-        self.worker("Git update", pull)
-
     def open_folder(self) -> None:
         folder = APP_DATA if FROZEN else HERE
         folder.mkdir(parents=True, exist_ok=True)
