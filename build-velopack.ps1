@@ -7,16 +7,27 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-# PowerShell 7 can turn native stderr output into a terminating error before $LASTEXITCODE is checked.
+# Merge native stderr into stdout so Windows PowerShell 5.1 and PowerShell 7 can safely inspect exit codes.
 $PSNativeCommandUseErrorActionPreference = $false
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
-python -c "from PIL import Image, ImageTk" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installing Pillow for custom manager background images..."
-    python -m pip install Pillow
-    if ($LASTEXITCODE -ne 0) { throw "Pillow installation failed; custom background support cannot be packaged." }
+if (-not (Test-Path (Join-Path $Root "requirements-build.txt"))) {
+    throw "Build dependency file not found: $(Join-Path $Root 'requirements-build.txt')"
+}
+
+Write-Host "Checking and installing required Python build packages..."
+$PipOutput = & python -m pip install -r (Join-Path $Root "requirements-build.txt") 2>&1
+$PipExitCode = $LASTEXITCODE
+$PipOutput | ForEach-Object { Write-Host $_ }
+if ($PipExitCode -ne 0) { throw "Python build dependency installation failed. Ensure Python and pip are installed and available on PATH." }
+
+if ($UpdateTools) {
+    Write-Host "Updating PyInstaller and Pillow..."
+    $UpdateOutput = & python -m pip install --upgrade pyinstaller Pillow 2>&1
+    $UpdateExitCode = $LASTEXITCODE
+    $UpdateOutput | ForEach-Object { Write-Host $_ }
+    if ($UpdateExitCode -ne 0) { throw "Python build tool update failed." }
 }
 
 $IconUrl = "https://raw.githubusercontent.com/wtffidy/shit-yourself/main/SkuaIcon.ico"
@@ -36,22 +47,6 @@ if (-not (Test-Path $IndexPath)) {
     throw "Dashboard file not found: $IndexPath"
 }
 
-if ($UpdateTools) {
-    Write-Host "Updating PyInstaller..."
-    python -m pip install --upgrade pyinstaller
-    if ($LASTEXITCODE -ne 0) { throw "PyInstaller update failed." }
-}
-else {
-    python -c "import PyInstaller" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Installing PyInstaller..."
-        python -m pip install pyinstaller
-        if ($LASTEXITCODE -ne 0) { throw "PyInstaller installation failed." }
-    }
-    else {
-        Write-Host "PyInstaller is already installed; skipping pip."
-    }
-}
 
 $Vpk = Join-Path $env:USERPROFILE ".dotnet\tools\vpk.exe"
 if (-not (Test-Path $Vpk)) {
