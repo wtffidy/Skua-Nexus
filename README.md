@@ -64,8 +64,21 @@ The dashboard is served locally at `http://localhost:8787/`.
 
 1. Find your Windows PC's LAN IPv4 address with `ipconfig` (look for the active Wi-Fi/Ethernet adapter's `IPv4 Address`).
 2. For phone access, the dashboard server must listen on the LAN interface, not only `127.0.0.1`. If it is bound to localhost, a phone cannot reach it by using the PC's IP.
-3. If Windows Firewall prompts, allow Python only on your **Private** network profile. Then open `http://<PC-LAN-IP>:8787/` on your phone and enter the `read_key` from `config.json` in Dashboard Settings.
+3. Create a Windows Firewall rule if needed (exact steps below), then open `http://<PC-LAN-IP>:8787/` on your phone and enter the `read_key` from `config.json` in Dashboard Settings.
 4. Keep the PC and phone on the same Wi-Fi. Some guest Wi-Fi networks isolate devices and prevent this connection.
+
+### Create the Windows Firewall rule manually
+
+1. Press **Win + R**, type `wf.msc`, and press Enter.
+2. Select **Inbound Rules** in the left pane.
+3. Select **New Rule…** in the right pane.
+4. Choose **Port** → **Next**.
+5. Choose **TCP**, enter `8787` for **Specific local ports**, and click **Next**.
+6. Choose **Allow the connection** → **Next**.
+7. Check **Private** only. Leave **Public** and **Domain** unchecked → **Next**.
+8. Name the rule `Skua Dashboard - Port 8787` and click **Finish**.
+
+If possible, scope the rule's **Scope** tab to your local subnet as an additional restriction. If an existing broad Python firewall rule is already enabled, review it too; a narrower rule does not necessarily override a broader allow rule. Only allow access on a trusted private network. Do not create router port forwarding for port 8787.
 
 Do not expose the webhook relay or port 8787 directly to the public internet.
 
