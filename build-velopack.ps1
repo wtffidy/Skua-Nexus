@@ -138,7 +138,7 @@ else {
 }
 
 Write-Host "Packing Velopack release v$Version..."
-& $Vpk pack --packId SkuaDashboard --packVersion $Version --packDir $PackageDir --mainExe SkuaManager.exe --packTitle "Skua Dashboard" --packAuthors "wtffidy" --icon $IconPath --outputDir $ReleasesDir
+& $Vpk pack --packId SkuaDashboard --packVersion $Version --packDir $PackageDir --mainExe SkuaManager.exe --packTitle "Skua Nexus" --packAuthors "wtffidy" --icon $IconPath --outputDir $ReleasesDir
 if ($LASTEXITCODE -ne 0) { throw "Velopack packaging failed." }
 
 Write-Host ""
