@@ -13,7 +13,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 HERE = Path(__file__).resolve().parent
 CFG_PATH, DATA_PATH = HERE / "config.json", HERE / "bots.json"
-DEFAULTS = {"port": 8787, "push_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"]}
+DEFAULTS = {"port": 8787, "push_key": "", "discord_webhook": "", "allowed_origins": ["https://wtffidy.github.io"], "vibeskua_url": "", "vibeskua_token": ""}
 
 
 def load_config() -> dict:
@@ -173,6 +173,125 @@ def record(body: dict) -> dict:
     return body
 
 
+def vibeskua_bots() -> list:
+    """Read live per-tab state from VibeSkua's local host API when configured."""
+    base = str(CFG.get("vibeskua_url") or "").strip().rstrip("/")
+    if not base:
+        return []
+
+    token = str(CFG.get("vibeskua_token") or "").strip()
+
+    def get_json(path: str):
+        headers = {"Accept": "application/json", "User-Agent": "SkuaDashboard/1.0"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(base + path, headers=headers)
+        with urllib.request.urlopen(request, timeout=2.5) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def safe_number(value):
+        try:
+            return int(value) if value is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    host = get_json("/status")
+    tabs = get_json("/tabs")
+    if not isinstance(tabs, list):
+        raise ValueError("VibeSkua /tabs response was not a list")
+
+    result = []
+    for tab in tabs:
+        if not isinstance(tab, dict):
+            continue
+        number_id = safe_number(tab.get("tab"))
+        if number_id is None or not tab.get("running"):
+            continue
+        try:
+            detail = get_json(f"/tabs/{number_id}/api/status?detail=1")
+        except Exception as exc:
+            print(f"VibeSkua tab {number_id} detail unavailable: {exc}")
+            detail = {}
+
+        game = detail.get("game") if isinstance(detail.get("game"), dict) else {}
+        stats = detail.get("stats") if isinstance(detail.get("stats"), dict) else {}
+        combat = detail.get("combat") if isinstance(detail.get("combat"), dict) else {}
+        target = combat.get("target") if isinstance(combat.get("target"), dict) else None
+        equipment = detail.get("equipment")
+        quests = detail.get("quests")
+        script = detail.get("script") if isinstance(detail.get("script"), dict) else {}
+        bag = game.get("bag") if isinstance(game.get("bag"), dict) else {}
+        player_name = game.get("player") or tab.get("title") or tab.get("account") or f"Tab {number_id}"
+
+        equipped = []
+        if isinstance(equipment, list):
+            for item in equipment:
+                if not isinstance(item, dict):
+                    continue
+                slot, name = item.get("slot"), item.get("name")
+                if name:
+                    extra = " / ".join(str(item[k]) for k in ("enhancement", "proc") if item.get(k))
+                    equipped.append(f"{slot + ': ' if slot else ''}{name}{' (' + extra + ')' if extra else ''}")
+
+        active_quests = []
+        if isinstance(quests, list):
+            for quest in quests:
+                if not isinstance(quest, dict):
+                    continue
+                name = str(quest.get("name") or quest.get("id") or "Quest")
+                requirements = quest.get("requirements")
+                progress = []
+                if isinstance(requirements, list):
+                    for requirement in requirements:
+                        if isinstance(requirement, dict) and requirement.get("name"):
+                            progress.append(
+                                f"{requirement['name']} {requirement.get('have', 0)}/{requirement.get('need', 0)}"
+                            )
+                active_quests.append(name + (": " + ", ".join(progress) if progress else ""))
+
+        hp = {"cur": game.get("hp"), "max": game.get("maxHp")} if game.get("hp") is not None and game.get("maxHp") else None
+        mp = {"cur": game.get("mp"), "max": game.get("maxMp")} if game.get("mp") is not None and game.get("maxMp") else None
+        fields = []
+        for label, value in (
+            ("Character", player_name), ("Map", game.get("map")), ("Room", game.get("room")),
+            ("Cell", game.get("cell")), ("Level", game.get("level")), ("Class", game.get("className")),
+            ("Gold", game.get("gold")), ("AC", game.get("coins")),
+            ("Inventory", f"{bag.get('used')}/{bag.get('slots')}" if bag else None),
+        ):
+            if value is not None and value != "":
+                fields.append({"name": label, "value": str(value)})
+
+        result.append({
+            "name": str(player_name),
+            "status": "Running script" if script.get("running") else ("Logged in" if game.get("loggedIn") else "Offline"),
+            "script": script.get("loaded") or "-",
+            "updated": int(time.time() * 1000),
+            "last": f"Tab {number_id} | {'Running' if script.get('running') else 'Idle'} | {script.get('loaded') or 'No script loaded'}",
+            "map": game.get("map"),
+            "room": game.get("room"),
+            "level": game.get("level"),
+            "class": game.get("className"),
+            "gold": game.get("gold"),
+            "ac": game.get("coins"),
+            "inv": {"used": bag.get("used"), "total": bag.get("slots")} if bag and bag.get("used") is not None and bag.get("slots") is not None else None,
+            "hp": hp,
+            "mp": mp,
+            "weapon": "\n".join(equipped) if equipped else None,
+            "quest": "\n".join(active_quests) if active_quests else None,
+            "target": {"name": target.get("name"), "hp": target.get("hp"), "max": target.get("maxHp")} if target else None,
+            "kills": stats.get("kills"),
+            "drops": stats.get("drops"),
+            "quests": stats.get("questsCompleted"),
+            "deaths": stats.get("deaths"),
+            "relogins": stats.get("relogins"),
+            "fields": fields,
+            "source": "vibeskua-api",
+            "tab": number_id,
+            "gameAgeMs": detail.get("gameAgeMs"),
+        })
+    return result
+
+
 def forward(body: dict) -> None:
     url = CFG["discord_webhook"]
     if not url:
@@ -217,8 +336,15 @@ class Handler(BaseHTTPRequestHandler):
             page = HERE / "index.html"
             self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
         elif path == "/bots":
-            with LOCK:
-                self._send(200, list(BOTS.values()))
+            if str(CFG.get("vibeskua_url") or "").strip():
+                try:
+                    self._send(200, vibeskua_bots())
+                except Exception as ex:
+                    print("VibeSkua API read failed:", ex)
+                    self._send(502, {"error": f"VibeSkua API read failed: {ex}"})
+            else:
+                with LOCK:
+                    self._send(200, list(BOTS.values()))
         elif path == "/raw":
             with LOCK:
                 self._send(200, list(RAW))
