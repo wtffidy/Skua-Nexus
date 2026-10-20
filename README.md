@@ -145,7 +145,7 @@ The patched VibeSkua service sends one dashboard snapshot immediately when a scr
 - `WebhookPingInterval = 0` (or less) uses the 5-second dashboard refresh default.
 - Set `WebhookPingInterval` to a positive number to override the default in **minutes** (for example, `1` means every minute).
 - The timer only runs while a script is running; it stops when the script stops or errors.
-- The timer only runs while a script is running; it stops when the script stops or errors.
 - Rebuild and run the patched VibeSkua client after changing its source patch. A settings-only change generally requires restarting the script so the timer is started again.
+- Webhook posts retry transient connection failures, timeouts, HTTP 408/429, and HTTP 5xx responses up to four attempts. This helps the initial snapshot arrive if the local relay is still starting; if the relay stays offline, the next periodic health ping will try again.
 
 WebSockets push each new snapshot to the dashboard immediately after the relay receives it; the VibeSkua client still needs to send snapshots periodically.
