@@ -121,7 +121,7 @@ def record(body: dict) -> dict:
     stats = body.get("stats") if isinstance(body.get("stats"), dict) else {}
     embeds = [e for e in (body.get("embeds") or []) if isinstance(e, dict)] or [{}]
     embed = embeds[0]
-    desc = "\\n".join(str(e.get("description") or "") for e in embeds)
+    desc = "\n".join(str(e.get("description") or "") for e in embeds)
     bold = BOLD.findall(desc)
     name = (body.get("username") or (embed.get("author") or {}).get("name") or
             (bold[0] if bold else None) or (embed.get("footer") or {}).get("text") or "unknown")
