@@ -46,8 +46,8 @@ dialog{background:var(--card);color:var(--fg);border:1px solid var(--line);borde
 <div class="bar-top"><b>Army</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button>
 <span class="sp"></span><button id="view">Grid View</button></div>
 <div id="grid"></div>
-<dialog id="dlg"><p>Relay URL (your Worker, no trailing slash)</p>
-<input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read key</p><input type="text" id="rkin" size="48" placeholder="your READ_KEY secret"><p><button class="p" id="save">Save</button></p></dialog>
+<dialog id="dlg"><p>Relay URL (default is the local relay.py)</p>
+<input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read key (only for the Cloudflare relay, otherwise leave empty)</p><input type="text" id="rkin" size="48" placeholder="your READ_KEY secret"><p><button class="p" id="save">Save</button></p></dialog>
 <script>
 // Display-only: data comes from whatever the client's webhook sends via the relay.
 const $ = s => document.querySelector(s);
@@ -55,7 +55,7 @@ const STALE = 180000; // 3 min offline cutoff (works with a 1-min ping interval)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => (n ?? 0).toLocaleString();
 const pct = (a, b) => b ? Math.min(100, a / b * 100) : 0;
-let url = localStorage.getItem("relay") || "", rk = localStorage.getItem("rk") || "", bots = [], picked = new Set();
+let url = localStorage.getItem("relay") || "http://localhost:8787", rk = localStorage.getItem("rk") || "", bots = [], picked = new Set();
 
 const bar = (c, m, col, lbl) => `<div class="bar"><i style="width:${pct(c, m)}%;background:${col}"></i><em>${lbl} ${fmt(c)} / ${fmt(m)}</em></div>`;
 const sec = (title, val, rows) => `<details><summary><span>${title}</span><small>${esc(val)}</small></summary><div class="body">${rows || "<div>No data</div>"}</div></details>`;
@@ -102,10 +102,10 @@ function render() {
 async function poll() {
   if (!url) return;
   try {
-    const r = await fetch(url + "/bots", { cache: "no-store", headers: { Authorization: `Bearer ${rk}` } });
+    const r = await fetch(url + "/bots", { cache: "no-store", headers: rk ? { Authorization: `Bearer ${rk}` } : {} });
     if (r.status === 401) { $("#sum").textContent = "Wrong or missing read key (Settings)"; return; }
     bots = (await r.json()).sort((a, b) => a.name.localeCompare(b.name)); render();
-  } catch { $("#sum").textContent = "Relay unreachable"; }
+  } catch { $("#sum").textContent = "Relay unreachable - is relay.py running?"; }
 }
 
 // Per-card checkbox: click handler so each box toggles only its own bot
@@ -127,6 +127,6 @@ $("#stream").checked = sm; document.body.classList.toggle("blur", sm);
 $("#stream").onchange = e => { document.body.classList.toggle("blur", e.target.checked); localStorage.setItem("stream", e.target.checked ? "1" : "0"); };
 $("#cfg").onclick = () => { $("#url").value = url; $("#rkin").value = rk; $("#dlg").showModal(); };
 $("#save").onclick = () => { url = $("#url").value.trim().replace(/\/$/, ""); rk = $("#rkin").value.trim(); localStorage.setItem("relay", url); localStorage.setItem("rk", rk); $("#dlg").close(); poll(); };
-if (!url || !rk) $("#dlg").showModal();
+
 setInterval(poll, 3000); poll();
 </script></body></html>
