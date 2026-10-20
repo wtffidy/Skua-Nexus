@@ -1,6 +1,14 @@
 # Skua Dashboard (Windows)
 
-A browser dashboard and local Python relay for Skua/VibeSkua.
+A browser dashboard and local relay for Skua/VibeSkua.
+
+## Windows installer (MSI)
+
+The project is being prepared for a native Windows MSI release. Once a version is published, download **SkuaDashboard-Setup-x64.msi** from the [GitHub Releases page](https://github.com/wtffidy/skua-dashboard/releases). The installer build bundles the manager and relay, so end users will not need to install Python or Git.
+
+The MSI build is defined in `.github/workflows/build-msi.yml` and `installer.wxs`. A version tag such as `v0.1.0` builds an MSI and attaches it to a GitHub Release. Use the workflow's **Run workflow** action to build a test artifact without publishing a release.
+
+User configuration and bot data are stored in `%APPDATA%\\SkuaDashboard\\config.json` and `%APPDATA%\\SkuaDashboard\\bots.json`. They are kept outside the installation directory so app upgrades do not overwrite them. Back up this folder before uninstalling if you want to preserve your settings.
 
 ## Start (Windows)
 
@@ -49,16 +57,16 @@ These are **process-level** measurements. VibeSkua hosts multiple game tabs insi
 
 ## Security and LAN access
 
-The relay listens on `0.0.0.0:8787` by default so devices on your private network can reach it. Localhost requests on the PC continue to work without a read key. Requests from other devices must supply the generated `read_key` from `config.json`; enter it in the dashboard's **Settings → Read/access key** field. The webhook's separate `push_key` is not the read key and should not be shared.
+The relay listens on `0.0.0.0:8787` by default so devices on your private network can reach it. Localhost requests on the PC continue to work without a read key. Requests from other devices must supply the generated `read_key` from `%APPDATA%\\SkuaDashboard\\config.json`; enter it in the dashboard's **Settings → Read/access key** field. The webhook's separate `push_key` is not the read key and should not be shared.
 
 For same-Wi-Fi access:
 
 1. Run `ipconfig` in Command Prompt and find the active adapter's IPv4 address.
 2. On your phone or another PC connected to the same trusted Wi-Fi, open `http://<PC-LAN-IP>:8787/`.
-3. Open **Settings** and paste the `read_key` value from the dashboard folder's `config.json`.
+3. Open **Settings** and paste the `read_key` value from `%APPDATA%\\SkuaDashboard\\config.json`.
 4. If Windows Firewall prompts, allow Python only on **Private networks**. If you need to create a rule manually, scope it to your private LAN and TCP port 8787.
 
-Use a long, private Wi-Fi password and do not forward port 8787 on your router. Avoid guest Wi-Fi for the phone because device isolation may block access. If you do not want LAN access, set `"host": "127.0.0.1"` in `config.json` and restart the relay.
+Use a long, private Wi-Fi password and do not forward port 8787 on your router. Avoid guest Wi-Fi for the phone because device isolation may block access. If you do not want LAN access, set `"host": "127.0.0.1"` in `%APPDATA%\\SkuaDashboard\\config.json` and restart the relay.
 
 ## Mobile access (same Wi-Fi and away from home)
 
