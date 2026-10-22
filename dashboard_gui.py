@@ -145,6 +145,8 @@ class DashboardApp(tk.Tk):
             row=1, column=1, sticky="ew", padx=(6, 0), pady=5)
         self._button(actions, "Open Config", self.open_config).grid(
             row=2, column=0, sticky="ew", padx=(0, 6), pady=5)
+        self.webhook_button = self._button(actions, "VibeSkua Webhook Setup", self.open_webhook_setup, primary=True)
+        self.webhook_button.grid(row=2, column=1, sticky="ew", padx=(6, 0), pady=5)
 
         remote_card = tk.Frame(self, bg=CARD, highlightbackground=LINE, highlightthickness=1)
         remote_card.pack(fill="x", padx=22, pady=(2, 10))
@@ -411,6 +413,8 @@ class DashboardApp(tk.Tk):
         alive = self.relay_responds()
         self.status_dot.configure(fg=GREEN if alive else AMBER)
         self.status.configure(text="Relay online" if alive else "Relay not responding", fg=GREEN if alive else AMBER)
+        if hasattr(self, "webhook_button"):
+            self.webhook_button.configure(state="normal" if alive else "disabled")
         self.after(5000, self.check_status)
 
     def open_dashboard_when_ready(self, attempt: int = 0) -> None:
@@ -422,6 +426,95 @@ class DashboardApp(tk.Tk):
             self.log_message("Dashboard auto-open skipped because the relay did not become ready in 15 seconds.")
             return
         self.after(500, lambda: self.open_dashboard_when_ready(attempt + 1))
+    def open_webhook_setup(self) -> None:
+        """Show local-only VibeSkua webhook setup and generate/copy the URL while the relay is online."""
+        dialog = tk.Toplevel(self)
+        dialog.title("Skua Nexus | VibeSkua Webhook")
+        dialog.configure(bg=BG)
+        dialog.resizable(False, False)
+        dialog.transient(self)
+        dialog.grab_set()
+        dialog.geometry("570x390")
+
+        tk.Label(dialog, text="VIBESKUA WEBHOOK SETUP", bg=BG, fg=ACCENT,
+                 font=("Segoe UI", 12, "bold")).pack(anchor="w", padx=20, pady=(18, 8))
+        tk.Label(dialog, text="1. In VibeSkua, open Menu Bar → Options → Application.\n"
+                              "2. Scroll to Discord Webhook.\n"
+                              "3. Click Generate URL below, then Copy URL.\n"
+                              "4. Paste the URL into VibeSkua and click Set.",
+                 bg=BG, fg=FG, font=("Segoe UI", 9), justify="left",
+                 wraplength=520).pack(anchor="w", padx=20, pady=(0, 12))
+
+        tk.Label(dialog, text="PRIVATE WEBHOOK URL", bg=BG, fg=MUTED,
+                 font=("Segoe UI", 8, "bold")).pack(anchor="w", padx=20)
+        url_var = tk.StringVar(value="")
+        url_entry = tk.Entry(dialog, textvariable=url_var, state="readonly",
+                             readonlybackground=INNER, fg=FG, insertbackground=FG,
+                             relief="flat", font=("Consolas", 9), width=68)
+        url_entry.pack(fill="x", padx=20, pady=(5, 10))
+
+        status = tk.Label(dialog, text="Start the relay before generating your URL.",
+                          bg=BG, fg=AMBER, font=("Segoe UI", 9), wraplength=520, justify="left")
+        status.pack(anchor="w", padx=20, pady=(0, 8))
+
+        actions = tk.Frame(dialog, bg=BG)
+        actions.pack(fill="x", padx=20, pady=(0, 12))
+        copy_button = self._button(actions, "Copy URL", lambda: copy_url(), primary=True)
+        copy_button.pack(side="left")
+        generate_button = self._button(actions, "Generate URL", lambda: generate_url())
+        generate_button.pack(side="left", padx=(8, 0))
+        self._button(actions, "Close", dialog.destroy).pack(side="right")
+
+        warning = tk.Label(dialog,
+                           text="SECURITY: This URL contains your private push key. Never share or post it publicly. Anyone with it can send data to your relay.",
+                           bg=CARD, fg=RED, font=("Segoe UI", 9, "bold"),
+                           wraplength=520, justify="left", padx=10, pady=9)
+        warning.pack(fill="x", padx=20, pady=(0, 16))
+
+        def generate_url() -> None:
+            if not self.relay_responds():
+                url_var.set("")
+                copy_button.configure(state="disabled")
+                status.configure(text="Relay is offline. Start the relay, then generate the URL.", fg=AMBER)
+                return
+            try:
+                config_path = APP_DATA / "config.json"
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                push_key = config.get("push_key")
+                port = int(config.get("port", 8787))
+                if not isinstance(push_key, str) or not push_key.strip():
+                    raise ValueError("The relay push_key is missing from config.json.")
+                if not 1 <= port <= 65535:
+                    raise ValueError("The relay port in config.json is invalid.")
+                url_var.set(f"http://127.0.0.1:{port}/api/webhooks/1/{push_key}")
+                copy_button.configure(state="normal")
+                status.configure(text="URL generated. Copy it and paste it into VibeSkua's Discord Webhook setting.",
+                                 fg=GREEN)
+                self.log_message("Generated the local VibeSkua webhook URL.")
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                url_var.set("")
+                copy_button.configure(state="disabled")
+                status.configure(text=f"Could not generate URL: {exc}", fg=RED)
+
+        def copy_url() -> None:
+            value = url_var.get()
+            if not value:
+                status.configure(text="Generate the URL first.", fg=AMBER)
+                return
+            try:
+                dialog.clipboard_clear()
+                dialog.clipboard_append(value)
+                dialog.update_idletasks()
+                status.configure(text="Copied. Paste into VibeSkua → Options → Application → Discord Webhook, then click Set. Keep it private.",
+                                 fg=GREEN)
+            except tk.TclError as exc:
+                status.configure(text=f"Could not copy URL: {exc}", fg=RED)
+
+        copy_button.configure(state="disabled")
+        generate_button.configure(state="normal" if self.relay_responds() else "disabled")
+        if self.relay_responds():
+            status.configure(text="Relay is online. Generate your private URL when ready.", fg=GREEN)
+
     def open_dashboard(self) -> None:
         if not self.relay_responds():
             if not messagebox.askyesno("Relay is offline", "The local relay is not responding. Start it now?"):
