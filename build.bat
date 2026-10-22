@@ -2,6 +2,27 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
+echo Updating Skua Nexus source from GitHub...
+git rev-parse --is-inside-work-tree >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: This folder is not a Git repository.
+    echo Clone Skua-Nexus from GitHub and run build.bat from that folder.
+    pause
+    exit /b 1
+)
+
+git pull --ff-only origin main
+if errorlevel 1 (
+    echo.
+    echo ERROR: Could not update from origin/main.
+    echo Check your internet connection and make sure local changes are committed or stashed.
+    pause
+    exit /b 1
+)
+
+echo Source is up to date.
+echo.
+
 set "VERSION_FILE=%~dp0version.txt"
 if not exist "%VERSION_FILE%" (
     echo 1.0.0>"%VERSION_FILE%"
