@@ -459,10 +459,10 @@ class DashboardApp(tk.Tk):
 
         actions = tk.Frame(dialog, bg=BG)
         actions.pack(fill="x", padx=20, pady=(0, 12))
-        copy_button = self._button(actions, "Copy URL", lambda: copy_url(), primary=True)
-        copy_button.pack(side="left")
-        generate_button = self._button(actions, "Generate URL", lambda: generate_url())
-        generate_button.pack(side="left", padx=(8, 0))
+        generate_button = self._button(actions, "Generate URL", lambda: generate_url(), primary=True)
+        generate_button.pack(side="left")
+        copy_button = self._button(actions, "Copy URL", lambda: copy_url())
+        copy_button.pack(side="left", padx=(8, 0))
         self._button(actions, "Close", dialog.destroy).pack(side="right")
 
         warning = tk.Label(dialog,
