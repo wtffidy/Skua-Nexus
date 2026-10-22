@@ -500,6 +500,11 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             page = RESOURCE_DIR / "index.html"
             self._send(200, page.read_bytes(), "text/html; charset=utf-8") if page.exists() else self._send(404, b"index.html not found next to relay.py")
+        elif path == "/client-webhook":
+            if not self._authorized():
+                return self._send(401, {"error": "unauthorized; enter the relay read_key in dashboard Settings"})
+            webhook_url = f"http://127.0.0.1:{CFG['port']}/api/webhooks/1/{CFG['push_key']}"
+            self._send(200, {"url": webhook_url})
         elif path in ("/bots", "/usage", "/raw") and not self._authorized():
             self._send(401, {"error": "unauthorized; enter the relay read_key in dashboard Settings"})
         elif path == "/bots":
