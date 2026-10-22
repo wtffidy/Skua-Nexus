@@ -50,12 +50,13 @@ dialog{background:#0e1827;color:var(--fg);border:1px solid #35506a;border-radius
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{transition:none!important;scroll-behavior:auto!important}}
 </style></head><body>
 <header><div class="logo">V</div><b>SKUA <span style="color:var(--acc)">NEXUS</span></b><span id="sum" class="mut"></span><span id="usage" class="mut">VibeSkua usage: checking…</span><span class="sp"></span>
-<label><input type="checkbox" id="stream" checked> Streamer mode</label><button id="cfg">Settings</button></header>
+<label><input type="checkbox" id="stream" checked> Streamer mode</label><button id="webhookBtn" class="p">Copy VibeSkua Webhook URL</button><button id="cfg">Settings</button></header>
 <nav><a class="on" data-t="bots">Bots</a><a data-t="scripts">Scripts</a><a data-t="accounts">Accounts</a><a data-t="resources">Resources</a></nav>
 <div class="bar-top"><b>OPERATIONS / ARMY</b><input type="text" id="q" placeholder="Filter bots..."><button id="all">Select all</button><button id="delsel" class="danger" hidden>Delete selected</button>
 <span class="sp"></span><button id="view">Grid View</button></div>
 <div id="grid"></div>
 <dialog id="confirmDlg"><p id="confirmText">Confirm deletion?</p><p><button id="confirmCancel">Cancel</button> <button class="danger" id="confirmDelete">Delete</button></p></dialog>
+<dialog id="webhookDlg"><h3>VibeSkua Webhook Setup</h3><p><b>SECURITY WARNING: KEEP THIS URL PRIVATE.</b> It contains your push key. Anyone who gets it may send data to your relay. Never post it in Discord, screenshots, GitHub, support tickets, or anywhere public. If exposed, regenerate the push key and restart the relay.</p><p>In VibeSkua, open <b>Menu Bar → Options → Application</b>, scroll to <b>Discord Webhook</b>, paste this URL, and click <b>Set</b>.</p><p><input type="text" id="webhookUrl" size="48" readonly></p><p id="webhookStatus">Click Copy URL to retrieve your private URL.</p><p><button class="p" id="copyWebhook">Copy URL</button> <button id="closeWebhook">Close</button></p></dialog>
 <dialog id="dlg"><p>Relay URL (default is the local relay.py)</p>
 <input type="text" id="url" size="48" placeholder="https://something.workers.dev"><p>Read/access key (leave empty only for localhost)</p><input type="password" id="rkin" size="48" placeholder="read_key from config.json"><p><button class="p" id="save">Save</button></p></dialog>
 <script>
@@ -239,6 +240,22 @@ const sm = localStorage.getItem("stream") !== "0";
 $("#stream").checked = sm; document.body.classList.toggle("blur", sm);
 $("#stream").onchange = e => { document.body.classList.toggle("blur", e.target.checked); localStorage.setItem("stream", e.target.checked ? "1" : "0"); };
 $("#cfg").onclick = () => { $("#url").value = url; $("#rkin").value = rk; $("#dlg").showModal(); };
+$("#webhookBtn").onclick = () => { $("#webhookUrl").value = ""; $("#webhookStatus").textContent = "Click Copy URL to retrieve your private URL."; $("#webhookDlg").showModal(); };
+$("#copyWebhook").onclick = async () => {
+  const status = $("#webhookStatus");
+  try {
+    const response = await fetch(url + "/client-webhook", { cache: "no-store", headers: rk ? { Authorization: "Bearer " + rk } : {} });
+    if (!response.ok) throw new Error(response.status === 401 ? "Unauthorized. Check the read/access key in Settings." : "Relay returned HTTP " + response.status + ".");
+    const data = await response.json();
+    if (typeof data.url !== "string" || !data.url.includes("/api/webhooks/1/")) throw new Error("Invalid webhook URL returned.");
+    $("#webhookUrl").value = data.url;
+    $("#webhookUrl").focus(); $("#webhookUrl").select();
+    let copied = false;
+    try { copied = document.execCommand("copy"); } catch {}
+    status.textContent = copied ? "Copied! Paste into VibeSkua → Options → Application → Discord Webhook, then click Set. Keep it private." : "URL selected. Copy it manually, paste into VibeSkua → Options → Application → Discord Webhook, then click Set. Keep it private.";
+  } catch (error) { status.textContent = error.message || "Could not retrieve URL. Check that the relay is running."; }
+};
+$("#closeWebhook").onclick = () => $("#webhookDlg").close();
 $("#save").onclick = () => { url = $("#url").value.trim().replace(/\/$/, ""); rk = $("#rkin").value.trim(); localStorage.setItem("relay", url); localStorage.setItem("rk", rk); $("#dlg").close(); poll(); };
 
 poll();
