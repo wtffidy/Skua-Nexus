@@ -36,10 +36,9 @@ The manager uses `SkuaIcon.ico` as its Windows title-bar/taskbar icon when the f
 
 There are two separate webhook settings:
 
-1. **VibeSkua client setting — Discord Webhook URL:** set this to the local relay URL printed when the relay starts:
-   `http://127.0.0.1:8787/api/webhooks/1/YOUR_PUSH_KEY`
-   Replace `YOUR_PUSH_KEY` with the `push_key` value in `%APPDATA%\\SkuaDashboard\\config.json`. Keep this key private. Do not put your real Discord webhook URL in the client when using the relay.
-2. **Relay setting — `discord_webhook`:** set this to the actual Discord channel webhook URL in the same `config.json`. The relay forwards client payloads to Discord only when this setting is non-empty. Dashboard updates do not require a Discord webhook.
+1. **VibeSkua client setting — Discord Webhook URL:** use the desktop manager's **VibeSkua Webhook Setup** button. Start the relay first, click **Generate URL**, then **Copy URL**. In VibeSkua, open **Options → Application → Discord Webhook**, paste the URL, and click **Set**. This setup is intentionally available only in the desktop app, not the dashboard webpage.
+   **Keep the URL private.** It contains your `push_key`; anyone with it can send data to your relay. Never share it publicly or include it in screenshots.
+2. **Relay setting — `discord_webhook`:** set this to the actual Discord channel webhook URL in `%APPDATA%\\SkuaDashboard\\config.json`. The relay forwards client payloads to Discord only when this setting is non-empty. Dashboard updates do not require a Discord webhook.
 
 The expected path is **patched VibeSkua client → local relay → dashboard**, with optional relay → Discord forwarding. The relay listens on `127.0.0.1:8787` by default. The client must be the rebuilt VibeSkua binary that includes [the patch](patches/DiscordWebhookService.cs); putting the patch file in this repository does not modify an already-installed VibeSkua.
 
